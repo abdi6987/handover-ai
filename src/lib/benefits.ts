@@ -1,0 +1,3 @@
+/** Selling points shown on the landing and sign up pages (translated with t()). */
+export const TENANT = ["Photo and video proof of the apartment before you move in", "Sign only after the landlord approves that proof", "Report repairs and breakages with photos, tracked until Done", "Private tracker for electricity, water and internet bills", "AI move-out check so you don't pay for damage you didn't cause"];
+export const OWNER = ["Approve the move-in condition before the lease is signed", "Tamper-evident, timestamped record of every room", "All repair and damage reports for each property in one log", "Invite tenants by email or WhatsApp", "AI compares move-out with move-in and flags new damage"];

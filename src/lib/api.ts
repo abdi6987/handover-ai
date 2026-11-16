@@ -11,6 +11,7 @@ export function handler(fn: (req: Request, user: User, params: Record<string, st
     try {
       const user = await currentUser();
       if (!user) return NextResponse.json({ error: "Please log in" }, { status: 401 });
+      if (!user.email_verified_at) return NextResponse.json({ error: "Please confirm your email first", redirect: "/verify-email" }, { status: 403 });
       const result = await fn(req, user, await ctx.params);
       if (result instanceof Response) return result;
       return NextResponse.json(result ?? { ok: true });

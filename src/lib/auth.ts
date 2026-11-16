@@ -41,17 +41,23 @@ export async function currentUser(): Promise<User | null> {
   if (!token) return null;
   const row = db()
     .prepare(
-      `SELECT u.id, u.email, u.name, u.phone, u.account_type, u.created_at FROM sessions s JOIN users u ON u.id = s.user_id
+      `SELECT u.id, u.email, u.name, u.phone, u.account_type, u.created_at, u.email_verified_at FROM sessions s JOIN users u ON u.id = s.user_id
        WHERE s.token = ? AND s.expires_at > ?`
     )
     .get(token, now()) as User | undefined;
   return row ?? null;
 }
 
-export async function requireUser(): Promise<User> {
+/** Logged-in user for a page. Unconfirmed emails are sent to /verify-email unless allowUnverified. */
+export async function requireUser(opts: { allowUnverified?: boolean } = {}): Promise<User> {
   const u = await currentUser();
   if (!u) redirect("/login");
+  if (!u.email_verified_at && !opts.allowUnverified) redirect("/verify-email");
   return u;
+}
+
+export async function destroyAllSessions(userId: number) {
+  db().prepare("DELETE FROM sessions WHERE user_id = ?").run(userId);
 }
 
 export function findUserByEmail(email: string) {
@@ -62,5 +68,5 @@ export function findUserByEmail(email: string) {
 
 export function getUser(id: number | null | undefined): User | null {
   if (!id) return null;
-  return (db().prepare("SELECT id, email, name, phone, account_type, created_at FROM users WHERE id = ?").get(id) as User) ?? null;
+  return (db().prepare("SELECT id, email, name, phone, account_type, created_at, email_verified_at FROM users WHERE id = ?").get(id) as User) ?? null;
 }

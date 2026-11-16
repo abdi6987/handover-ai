@@ -7,7 +7,7 @@ type Mail = { id: number; subject: string; body: string; link: string | null; cr
 
 export default async function Inbox() {
   const t = await getT();
-  const user = await requireUser();
+  const user = await requireUser({ allowUnverified: true });
   const mails = db().prepare("SELECT * FROM outbox WHERE to_email = ? ORDER BY id DESC LIMIT 100").all(user.email) as Mail[];
   const live = !!process.env.RESEND_API_KEY;
   return (

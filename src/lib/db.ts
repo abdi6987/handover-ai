@@ -162,6 +162,21 @@ function open(): Database.Database {
   `);
   const cols = db.prepare("PRAGMA table_info(users)").all() as { name: string }[];
   if (!cols.some((c) => c.name === "account_type")) db.exec("ALTER TABLE users ADD COLUMN account_type TEXT NOT NULL DEFAULT 'tenant'");
+  if (!cols.some((c) => c.name === "email_verified_at")) {
+    // Accounts created before email checks existed count as verified.
+    db.exec(`ALTER TABLE users ADD COLUMN email_verified_at TEXT; UPDATE users SET email_verified_at = created_at;
+      ALTER TABLE users ADD COLUMN company TEXT; ALTER TABLE users ADD COLUMN property_count TEXT;
+      ALTER TABLE users ADD COLUMN country TEXT; ALTER TABLE users ADD COLUMN city TEXT;
+      ALTER TABLE users ADD COLUMN terms_accepted_at TEXT; ALTER TABLE users ADD COLUMN google_id TEXT;`);
+  }
+  db.exec(`CREATE TABLE IF NOT EXISTS email_codes (
+    user_id INTEGER PRIMARY KEY REFERENCES users(id),
+    code_hash TEXT NOT NULL, expires_at TEXT NOT NULL, attempts INTEGER NOT NULL DEFAULT 0, sent_at TEXT NOT NULL
+  );
+  CREATE TABLE IF NOT EXISTS password_resets (
+    token_hash TEXT PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id),
+    expires_at TEXT NOT NULL, used_at TEXT, created_at TEXT NOT NULL
+  );`);
   db.exec(`CREATE TABLE IF NOT EXISTS staff (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     owner_id INTEGER NOT NULL REFERENCES users(id),

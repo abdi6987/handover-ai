@@ -7,6 +7,14 @@ import type { Rental, Role, User } from "./types";
 
 export type Invite = { token: string; rental_id: number; role: Role; email: string | null; created_by: number; created_at: string; accepted_at: string | null };
 
+/** Accept a bare invite code or a pasted invite link. */
+export function inviteToken(v: unknown) {
+  const s = typeof v === "string" ? v.trim().slice(0, 500) : "";
+  if (!s) return "";
+  const m = s.match(/invite\/([A-Za-z0-9_-]+)/);
+  return m ? m[1] : s.replace(/[^A-Za-z0-9_-]/g, "");
+}
+
 export function getInvite(token: string) {
   return (db().prepare("SELECT * FROM invites WHERE token = ?").get(token) as Invite) ?? null;
 }

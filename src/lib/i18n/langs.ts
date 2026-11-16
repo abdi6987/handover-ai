@@ -18,7 +18,8 @@ export function isLang(x: unknown): x is Lang {
 /** Look up an English source string; fall back to English when a translation is missing. */
 export function makeT(dict: Dict | null): TFn {
   return (s, vars) => {
-    let out = dict?.__pseudo ? `⟦${s}⟧` : (dict && dict[s]) || s; // __pseudo: dev check for untranslated text
+    let out = dict?.__pseudo ? `⟦${s}⟧` : (dict && dict[s]) || s;
+    if (dict && !dict.__pseudo && !dict[s] && process.env.NEXT_PUBLIC_I18N_LOG) console.warn("[i18n-missing]", JSON.stringify(s)); // __pseudo: dev check for untranslated text
     if (vars) for (const [k, v] of Object.entries(vars)) out = out.split(`{${k}}`).join(String(v ?? ""));
     return out;
   };

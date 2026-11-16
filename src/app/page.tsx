@@ -2,9 +2,8 @@ import Link from "next/link";
 import { getT } from "@/lib/i18n";
 import { redirect } from "next/navigation";
 import { currentUser } from "@/lib/auth";
+import { OWNER, TENANT } from "@/lib/benefits";
 
-const TENANT = ["Photo and video proof of the apartment before you move in", "Sign only after the landlord approves that proof", "Report repairs and breakages with photos, tracked until Done", "Private tracker for electricity, water and internet bills", "AI move-out check so you don't pay for damage you didn't cause"];
-const OWNER = ["Approve the move-in condition before the lease is signed", "Tamper-evident, timestamped record of every room", "All repair and damage reports for each property in one log", "Invite tenants by email or WhatsApp", "AI compares move-out with move-in and flags new damage"];
 
 export default async function Home() {
   const t = await getT();
@@ -27,7 +26,7 @@ export default async function Home() {
               {points.map((p) => <li key={p} className="flex gap-2"><span className="text-brand-600">✓</span>{t(p)}</li>)}
             </ul>
             <div className="flex gap-2">
-              <Link href={`/signup?as=${as}`} className="btn-primary flex-1">{t(as === "owner" ? "Sign up as landlord" : "Sign up as tenant")}</Link>
+              <Link href={as === "owner" ? "/signup/landlord" : "/signup/tenant"} className="btn-primary flex-1">{t(as === "owner" ? "Sign up as landlord" : "Sign up as tenant")}</Link>
               <Link href="/login" className="btn-secondary">{t("Log in")}</Link>
             </div>
           </div>
