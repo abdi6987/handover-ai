@@ -1,4 +1,5 @@
 import { loadRental } from "@/lib/page";
+import { getUser } from "@/lib/auth";
 import { mediaFor, moveInLocked } from "@/lib/rentals";
 import { appUrl } from "@/lib/notify";
 import { Form, UploadBox } from "@/components/client";
@@ -75,7 +76,7 @@ export default async function MoveIn({ params }: { params: Promise<{ id: string 
       {r.movein_status === "submitted" && role === "tenant" && (
         <div className="card flex flex-wrap items-center justify-between gap-3">
           <p className="text-sm">Waiting for {names.get(r.owner_id ?? 0) ?? "the owner"} to approve. They&apos;ve been emailed.</p>
-          <WhatsAppLink text={`Hi, I've uploaded the move-in photos for "${r.name}" on Handover AI. Please review and approve them so we can sign the lease: ${link}`} label="Remind on WhatsApp" />
+          <WhatsAppLink text={`Hi, I've uploaded the move-in photos for "${r.name}" on Handover AI. Please review and approve them so we can sign the lease: ${link}`} label="Remind on WhatsApp" phone={getUser(r.owner_id)?.phone} />
         </div>
       )}
     </div>

@@ -5,6 +5,7 @@ import { promisify } from "node:util";
 import { CACHE_DIR } from "./db";
 import { mediaPath } from "./storage";
 import type { Media } from "./types";
+import { previewFile } from "./preview";
 
 const run = promisify(execFile);
 const FIT = "scale='if(gt(iw,ih),min(1280,iw),-2)':'if(gt(iw,ih),-2,min(1280,ih))'";
@@ -14,7 +15,7 @@ export type Frame = { mediaId: number; t: number | null; jpegPath: string };
 /** Normalise a photo to a <=1280px JPEG (keeps API requests small, handles PNG/WebP etc.). */
 async function photoFrame(m: Media): Promise<Frame> {
   const out = path.join(CACHE_DIR, `${m.sha256}.jpg`);
-  if (!fs.existsSync(out)) await run("ffmpeg", ["-y", "-loglevel", "error", "-i", mediaPath(m), "-vf", FIT, "-frames:v", "1", "-q:v", "4", out]);
+  if (!fs.existsSync(out)) await run("ffmpeg", ["-y", "-loglevel", "error", "-i", previewFile(m) ?? mediaPath(m), "-vf", FIT, "-frames:v", "1", "-q:v", "4", out]);
   return { mediaId: m.id, t: null, jpegPath: out };
 }
 

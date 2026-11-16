@@ -10,11 +10,12 @@ const LABELS: Record<string, string> = {
   "lease.edited": "edited the lease details", "lease.signed": "signed the lease", "issue.reported": "reported an issue",
   "issue.comment": "commented on an issue", "issue.status": "changed an issue's status", "issue.confirm": "confirmed a fix",
   "comparison.started": "started the AI comparison", "comparison.completed": "AI comparison finished", "comparison.failed": "AI comparison failed",
-  "comparison_item.agree": "agreed with an AI finding", "comparison_item.dispute": "disputed an AI finding", "rental.closed": "closed the rental",
+  "comparison_item.agree": "agreed with an AI finding", "comparison_item.dispute": "disputed an AI finding", "rental.closed": "closed the rental", "issue.assigned": "assigned an issue to staff",
 };
 
 function detail(action: string, d: Record<string, unknown>) {
   if (action === "media.uploaded" || action === "media.removed") return `${d.context === "move_in" ? "Move-in" : d.context === "move_out" ? "Move-out" : d.context === "issue" ? "Issue" : "Document"}${d.room ? ` · ${d.room}` : ""} · ${d.name}`;
+  if (action === "issue.assigned") return d.staff ? `→ ${d.staff}` : "unassigned";
   if (action === "issue.reported") return `${d.title}${d.room ? ` (${d.room})` : ""}`;
   if (action === "issue.status") return `→ ${d.status}${d.body ? `: ${d.body}` : ""}`;
   if (action.startsWith("issue.")) return String(d.body ?? "");

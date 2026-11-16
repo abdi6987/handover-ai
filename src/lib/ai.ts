@@ -65,7 +65,7 @@ async function compareRoom(client: Anthropic, rental: Rental, room: string, befo
   const byId = new Map([...before, ...after].map((m) => [m.id, m]));
   const issues = issuesFor(rental.id).filter((i) => !i.room || i.room.toLowerCase() === room.toLowerCase());
   const issueText = issues.length
-    ? issues.map((i) => `#${i.id} [${ISSUE_TYPES[i.type]}, ${ISSUE_STATUS[i.status]}${i.done_at ? ` on ${i.done_at.slice(0, 10)}` : ""}] reported ${i.created_at.slice(0, 10)} by ${i.reporter_name}${i.room ? ` in ${i.room}` : ""}: ${i.title}. ${i.description}`).join("\n")
+    ? issues.map((i) => `#${i.id} [${ISSUE_TYPES[i.type]}${i.category ? `/${i.category}` : ""}, ${ISSUE_STATUS[i.status]}${i.done_at ? ` on ${i.done_at.slice(0, 10)}` : ""}] reported ${i.created_at.slice(0, 10)} by ${i.reporter_name}${i.room ? ` in ${i.room}` : ""}: ${i.title}. ${i.description}`).join("\n")
     : "None.";
   if (!bf.length || !af.length) {
     return { room, frames: { before: bf, after: af }, result: { room_summary: !bf.length ? "No sealed move-in photos of this room to compare against." : "No usable move-out images for this room.", findings: [] } as RoomResult };

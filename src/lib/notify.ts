@@ -39,6 +39,17 @@ function escapeHtml(s: string) {
   return s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
 }
 
-export function whatsappLink(text: string) {
-  return `https://wa.me/?text=${encodeURIComponent(text)}`;
+/** Normalise a phone number for wa.me (digits only, country code added for local numbers). */
+export function waNumber(phone: string | null | undefined) {
+  if (!phone) return "";
+  const d = phone.replace(/[^\d+]/g, "");
+  if (d.startsWith("+")) return d.slice(1);
+  if (d.startsWith("00")) return d.slice(2);
+  const cc = process.env.DEFAULT_COUNTRY_CODE || "974";
+  return d.length <= 8 ? cc + d : d;
+}
+
+/** WhatsApp link: straight to the person's chat when we know their number, otherwise a contact picker. */
+export function whatsappLink(text: string, phone?: string | null) {
+  return `https://wa.me/${waNumber(phone)}?text=${encodeURIComponent(text)}`;
 }

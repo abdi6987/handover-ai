@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { loadRental } from "@/lib/page";
 import { fullySigned, issuesFor, mediaFor } from "@/lib/rentals";
+import { db } from "@/lib/db";
+import type { Rental } from "@/lib/types";
 import { InviteBox } from "@/components/client";
 import { Badge, fmt, fmtMoney } from "@/components/ui";
 import { ISSUE_STATUS, ISSUE_TYPES } from "@/lib/types";
@@ -14,6 +16,19 @@ export default async function Overview({ params }: { params: Promise<{ id: strin
   const moveIn = mediaFor(r.id, "move_in");
   const issues = issuesFor(r.id);
   const mySigned = !!r[`${role}_signed_at`];
+  const docs = mediaFor(r.id, "document").length;
+  const moveOut = mediaFor(r.id, "move_out").length;
+  const lastAi = db().prepare("SELECT c.created_at, (SELECT COUNT(*) FROM comparison_items i WHERE i.comparison_id = c.id AND i.classification = 'new_damage') dmg FROM comparisons c WHERE rental_id = ? AND status = 'done' ORDER BY id DESC LIMIT 1").get(r.id) as { created_at: string; dmg: number } | undefined;
+  const cost = role === "owner" ? (db().prepare("SELECT COALESCE(SUM(repair_cost),0) s FROM issues WHERE rental_id = ?").get(r.id) as { s: number }).s : 0;
+  const past = role === "owner" ? (db().prepare("SELECT * FROM rentals WHERE owner_id = ? AND id != ? AND lower(trim(address)) = lower(trim(?)) ORDER BY created_at DESC").all(r.owner_id, r.id, r.address) as Rental[]) : [];
+  const glance: [string, string, string][] = [
+    ["Move-in photos/videos", `${moveIn.length}${r.movein_status === "approved" ? " · sealed" : ""}`, "move-in"],
+    ["Lease", fullySigned(r) ? "Signed by both" : r.owner_signed_at || r.tenant_signed_at ? "Partly signed" : "Not signed", "lease"],
+    ["Issues", `${issues.filter((i) => i.status !== "done").length} open · ${issues.filter((i) => i.status === "done").length} done`, "issues"],
+    ["Documents", String(docs), "documents"],
+    ["Move-out", moveOut ? `${moveOut} files${lastAi ? ` · AI: ${lastAi.dmg} new damage` : ""}` : "Not started", "move-out"],
+    ...(role === "owner" ? [["Repair/upkeep cost", fmtMoney(cost, r.currency), "issues"] as [string, string, string]] : []),
+  ];
 
   let next: { title: string; text: string; href: string; cta: string } | null = null;
   if (!otherId) next = null;
@@ -45,6 +60,25 @@ export default async function Overview({ params }: { params: Promise<{ id: strin
             <h2 className="h2 mt-1">{next.title}</h2>
             {next.text && <p className="mt-1 whitespace-pre-line text-sm text-gray-700">{next.text}</p>}
             <Link href={next.href} className="btn-primary mt-3">{next.cta}</Link>
+          </div>
+        )}
+        <div className="card">
+          <h2 className="h2">Everything at a glance</h2>
+          <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
+            {glance.map(([label, value, tab]) => (
+              <Link key={label} href={`${base}/${tab}`} className="rounded-xl bg-gray-50 p-3 transition hover:bg-brand-50">
+                <p className="text-xs text-gray-500">{label}</p>
+                <p className="font-semibold">{value}</p>
+              </Link>
+            ))}
+          </div>
+        </div>
+        {past.length > 0 && (
+          <div className="card">
+            <h2 className="h2">Past tenancies at this address</h2>
+            <ul className="mt-2 divide-y divide-gray-100 text-sm">
+              {past.map((p) => <li key={p.id} className="py-2"><Link href={`/rentals/${p.id}`} className="font-medium text-brand-700">{p.name}</Link> <span className="muted">· {fmt(p.start_date, false) || fmt(p.created_at, false)} – {p.ended_at ? fmt(p.ended_at, false) : "ongoing"}</span></li>)}
+            </ul>
           </div>
         )}
         <div className="card">

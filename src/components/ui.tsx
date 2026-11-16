@@ -1,7 +1,8 @@
 import Link from "next/link";
-import { ActionButton } from "./client";
+import { ActionButton, AutoRefresh } from "./client";
 import { whatsappLink } from "@/lib/notify";
 import type { Media } from "@/lib/types";
+import { BROWSER_IMAGE } from "@/lib/formats";
 
 const TZ = process.env.DISPLAY_TZ || "Asia/Qatar";
 export function fmt(iso: string | null | undefined, withTime = true) {
@@ -24,20 +25,34 @@ export function Badge({ tone = "gray", children }: { tone?: keyof typeof TONES; 
   return <span className={`badge ${TONES[tone]}`}>{children}</span>;
 }
 
-export function WhatsAppLink({ text, label = "Send on WhatsApp", className = "btn-whatsapp" }: { text: string; label?: string; className?: string }) {
-  return <a href={whatsappLink(text)} target="_blank" rel="noreferrer" className={className}>{label}</a>;
+export function WhatsAppLink({ text, label = "Send on WhatsApp", className = "btn-whatsapp", phone }: { text: string; label?: string; className?: string; phone?: string | null }) {
+  return <a href={whatsappLink(text, phone)} target="_blank" rel="noreferrer" className={className}>{label}</a>;
 }
 
 export function MediaTile({ m, uploader, canDelete, t }: { m: Media; uploader?: string; canDelete?: boolean; t?: number | null }) {
-  const src = `/api/media/${m.id}/file`;
+  const original = `/api/media/${m.id}/file`;
+  const ready = m.preview_status === "ready";
+  const viewable = ready || m.preview_status === "none" || (m.kind === "photo" ? BROWSER_IMAGE.has(m.mime) : m.mime === "video/mp4" || m.mime === "video/webm");
+  const src = ready ? `${original}?preview=1` : original;
+  if (m.kind === "audio") return (
+    <figure className="col-span-2 rounded-xl border border-gray-200 bg-white p-2">
+      <p className="mb-1 text-xs font-medium text-gray-700">🎙️ Voice note · {uploader ? `${uploader} · ` : ""}{fmt(m.uploaded_at)}</p>
+      {viewable ? <audio src={src} controls preload="metadata" className="w-full" /> : m.preview_status === "processing" ? <p className="text-xs text-gray-500">⏳ Converting…</p> : <a href={`${original}?download`} className="text-xs font-semibold text-brand-700">Download recording</a>}
+      <p className="mono mt-1 text-[10px] text-gray-400">#{m.sha256.slice(0, 12)} · {fmtSize(m.size)}</p>
+    </figure>
+  );
   return (
     <figure className="overflow-hidden rounded-xl border border-gray-200 bg-white">
       <a href={src} target="_blank" rel="noreferrer" className="block aspect-[4/3] bg-gray-100">
-        {m.kind === "photo" ? (
+        {m.kind === "photo" && viewable ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={src} alt={m.original_name} loading="lazy" className="h-full w-full object-cover" />
-        ) : m.kind === "video" ? (
+        ) : m.kind === "video" && viewable ? (
           <video src={`${src}#t=${t ?? 0.5}`} controls preload="metadata" playsInline className="h-full w-full object-cover" />
+        ) : m.kind !== "file" && m.preview_status === "processing" ? (
+          <span className="grid h-full place-items-center p-2 text-center text-xs text-gray-500">⏳ Converting {m.kind === "video" ? "video" : "photo"} for viewing…</span>
+        ) : m.kind !== "file" ? (
+          <span className="grid h-full place-items-center p-2 text-center text-xs text-gray-500">{m.kind === "video" ? "🎥" : "🖼️"} Preview not available.<br />Tap to download the original.</span>
         ) : (
           <span className="grid h-full place-items-center text-sm text-gray-500">📄 {m.original_name}</span>
         )}
@@ -45,7 +60,7 @@ export function MediaTile({ m, uploader, canDelete, t }: { m: Media; uploader?: 
       <figcaption className="space-y-0.5 p-2 text-xs text-gray-600">
         <div className="truncate font-medium text-gray-800">{m.kind === "video" ? "🎥 " : ""}{m.title && m.context === "document" ? m.title : m.original_name}{t != null ? ` @ ${t}s` : ""}</div>
         <div>{uploader ? `${uploader} · ` : ""}{fmt(m.uploaded_at)}</div>
-        <div className="mono text-[10px] text-gray-400" title={`SHA-256 ${m.sha256}`}>#{m.sha256.slice(0, 12)} · {fmtSize(m.size)}</div>
+        <div className="mono text-[10px] text-gray-400" title={`SHA-256 ${m.sha256}`}>#{m.sha256.slice(0, 12)} · {fmtSize(m.size)}{ready ? <> · <a href={`${original}?download`} className="underline">original</a></> : null}</div>
         {canDelete && <ActionButton url={`/api/media/${m.id}`} method="DELETE" label="Remove" className="mt-1 text-xs font-semibold text-red-700" confirmText="Remove this file? The removal is logged." />}
       </figcaption>
     </figure>
@@ -56,6 +71,7 @@ export function MediaGrid({ media, names, canDelete }: { media: Media[]; names: 
   if (!media.length) return <p className="muted">Nothing uploaded yet.</p>;
   return (
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+      {media.some((m) => m.preview_status === "processing") && <AutoRefresh ms={5000} />}
       {media.map((m) => <MediaTile key={m.id} m={m} uploader={names.get(m.uploaded_by)} canDelete={canDelete?.(m)} />)}
     </div>
   );

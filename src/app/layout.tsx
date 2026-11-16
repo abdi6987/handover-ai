@@ -24,7 +24,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             </Link>
             {user ? (
               <nav className="flex items-center gap-1 text-sm">
-                <Link href="/dashboard" className="rounded-lg px-2.5 py-1.5 hover:bg-gray-100">Rentals</Link>
+                <Link href="/dashboard" className="rounded-lg px-2.5 py-1.5 hover:bg-gray-100">{user.account_type === "staff" ? "Jobs" : "Rentals"}</Link>
+                {user.account_type === "owner" && <Link href="/dashboard/landlord/maintenance" className="hidden rounded-lg px-2.5 py-1.5 hover:bg-gray-100 sm:inline">Maintenance</Link>}
+                {user.account_type === "owner" && <Link href="/dashboard/landlord/staff" className="hidden rounded-lg px-2.5 py-1.5 hover:bg-gray-100 sm:inline">Staff</Link>}
                 <Link href="/inbox" className="rounded-lg px-2.5 py-1.5 hover:bg-gray-100">Emails</Link>
                 <LogoutButton />
               </nav>

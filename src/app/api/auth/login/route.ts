@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
-import { createSession, findUserByEmail, verifyPassword } from "@/lib/auth";
+import { createSession, findUserByEmail, verifyPassword, getUser } from "@/lib/auth";
 import { acceptInvite } from "@/lib/invites";
 import { HttpError } from "@/lib/rentals";
+import { acceptStaff } from "@/lib/staff";
 
 export async function POST(req: Request) {
   const b = await req.json();
@@ -13,6 +14,10 @@ export async function POST(req: Request) {
   if (b.invite) {
     try { redirect = `/rentals/${await acceptInvite(String(b.invite), u)}`; }
     catch (e) { if (!(e instanceof HttpError)) throw e; redirect = `/invite/${b.invite}`; }
+  }
+  if (b.staff) {
+    try { await acceptStaff(String(b.staff), getUser(u.id)!); redirect = "/dashboard/staff"; }
+    catch (e) { if (!(e instanceof HttpError)) throw e; redirect = `/staff-invite/${b.staff}`; }
   }
   return NextResponse.json({ redirect });
 }

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { ACCEPT_MEDIA, ACCEPT_MEDIA_AUDIO } from "@/lib/formats";
 
 type Resp = { error?: string; redirect?: string; [k: string]: unknown };
 
@@ -111,16 +112,16 @@ export function RolePicker({ name, value, onChange }: { name: string; value: "te
   );
 }
 
-export function AuthForm({ mode, invite, email, as = "tenant" }: { mode: "login" | "signup"; invite?: string; email?: string; as?: "tenant" | "owner" }) {
+export function AuthForm({ mode, invite, email, as = "tenant", staff }: { mode: "login" | "signup"; invite?: string; email?: string; as?: "tenant" | "owner"; staff?: string }) {
   const router = useRouter();
   const [role, setRole] = useState<"tenant" | "owner">(as);
   return (
-    <Form url={`/api/auth/${mode}`} submitLabel={mode === "login" ? "Log in" : `Create ${role === "owner" ? "landlord" : "tenant"} account`} buttonClass="btn-primary w-full"
-      extra={invite ? { invite } : undefined} resetOnSuccess={false}
+    <Form url={`/api/auth/${mode}`} submitLabel={mode === "login" ? "Log in" : staff ? "Create staff account" : `Create ${role === "owner" ? "landlord" : "tenant"} account`} buttonClass="btn-primary w-full"
+      extra={invite ? { invite } : staff ? { staff } : undefined} resetOnSuccess={false}
       onDone={(r) => { router.push(r.redirect || "/dashboard"); router.refresh(); }}>
       {mode === "signup" && (
         <>
-          {!invite && <div><span className="label">I am a</span><RolePicker name="accountType" value={role} onChange={setRole} /></div>}
+          {!invite && !staff && <div><span className="label">I am a</span><RolePicker name="accountType" value={role} onChange={setRole} /></div>}
           <div><label className="label">Full name</label><input name="name" required className="input" autoComplete="name" /></div>
           <div><label className="label">Phone (optional, for WhatsApp)</label><input name="phone" className="input" type="tel" autoComplete="tel" /></div>
         </>
@@ -226,11 +227,11 @@ export function UploadBox({ rentalId, context, rooms, defaultRoom }: { rentalId:
       <div className="grid grid-cols-2 gap-2">
         <label className="btn-secondary cursor-pointer">
           Take photo / video
-          <input ref={cam} name="files" type="file" accept="image/*,video/*" capture="environment" className="sr-only" onChange={sync} />
+          <input ref={cam} name="files" type="file" accept={ACCEPT_MEDIA} capture="environment" className="sr-only" onChange={sync} />
         </label>
         <label className="btn-secondary cursor-pointer">
           Choose files
-          <input ref={pick} name="files" type="file" accept="image/*,video/*" multiple className="sr-only" onChange={sync} />
+          <input ref={pick} name="files" type="file" accept={ACCEPT_MEDIA} multiple className="sr-only" onChange={sync} />
         </label>
       </div>
       {count > 0 && <p className="text-sm text-gray-600">{count} file{count > 1 ? "s" : ""} selected</p>}
@@ -238,7 +239,7 @@ export function UploadBox({ rentalId, context, rooms, defaultRoom }: { rentalId:
   );
 }
 
-export function FilePickers({ name = "files", accept = "image/*,video/*" }: { name?: string; accept?: string }) {
+export function FilePickers({ name = "files", accept = ACCEPT_MEDIA }: { name?: string; accept?: string }) {
   const [count, setCount] = useState(0);
   const refs = [useRef<HTMLInputElement>(null), useRef<HTMLInputElement>(null)];
   const sync = () => setCount(refs.reduce((n, r) => n + (r.current?.files?.length ?? 0), 0));
@@ -305,5 +306,140 @@ export function AddRentalBox({ title, defaultOpen, role }: { title: string; defa
       <button type="button" className="w-full text-left font-semibold" onClick={() => setOpen(!open)}>{open ? "−" : "+"} {title}</button>
       {open && <div className="mt-4"><NewRentalForm defaultRole={role} /></div>}
     </div>
+  );
+}
+
+export function StaffForm() {
+  const [res, setRes] = useState<{ link: string; whatsapp: string; emailed: boolean } | null>(null);
+  return (
+    <div className="space-y-3">
+      <Form url="/api/staff" submitLabel="Add and invite" onDone={(r) => setRes({ link: r.link as string, whatsapp: r.whatsapp as string, emailed: !!r.emailed })}>
+        <div><label className="label">Name</label><input name="name" required className="input" /></div>
+        <div><label className="label">Role</label><input name="trade" list="trades" className="input" placeholder="e.g. Maintenance, Plumber, AC technician" /><datalist id="trades">{["Maintenance", "Plumber", "Electrician", "AC technician", "Cleaner", "Building manager"].map((t) => <option key={t} value={t} />)}</datalist></div>
+        <div><label className="label">WhatsApp number</label><input name="phone" type="tel" className="input" placeholder="+974 5555 1234" /></div>
+        <div><label className="label">Email (optional)</label><input name="email" type="email" className="input" /></div>
+      </Form>
+      {res && <InviteResult {...res} />}
+    </div>
+  );
+}
+
+export function AssignForm({ issueId, staff, current }: { issueId: number; staff: { id: number; name: string; trade: string | null }[]; current: number | null }) {
+  return (
+    <Form url={`/api/issues/${issueId}`} multipart submitLabel="Assign" buttonClass="btn-secondary" extra={{ action: "assign" }} resetOnSuccess={false}>
+      <select name="staff_id" defaultValue={current ?? ""} className="input">
+        <option value="">Not assigned</option>
+        {staff.map((s) => <option key={s.id} value={s.id}>{s.name}{s.trade ? ` (${s.trade})` : ""}</option>)}
+      </select>
+    </Form>
+  );
+}
+
+/** Record a voice note in the browser and attach it to the surrounding form as a file input. */
+export function VoiceRecorder({ name = "files" }: { name?: string }) {
+  const input = useRef<HTMLInputElement>(null);
+  const rec = useRef<MediaRecorder | null>(null);
+  const [state, setState] = useState<"idle" | "recording" | "done" | "unsupported">("idle");
+  const [secs, setSecs] = useState(0);
+  const [url, setUrl] = useState<string | null>(null);
+  useEffect(() => {
+    if (state !== "recording") return;
+    const t = setInterval(() => setSecs((s) => s + 1), 1000);
+    return () => clearInterval(t);
+  }, [state]);
+  useEffect(() => {
+    const form = input.current?.form;
+    const reset = () => { setState("idle"); setUrl(null); setSecs(0); };
+    form?.addEventListener("reset", reset);
+    return () => form?.removeEventListener("reset", reset);
+  });
+  async function start() {
+    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") return setState("unsupported");
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const type = ["audio/mp4", "audio/webm;codecs=opus", "audio/webm"].find((t) => MediaRecorder.isTypeSupported(t)) ?? "";
+      const r = new MediaRecorder(stream, type ? { mimeType: type } : undefined);
+      const chunks: Blob[] = [];
+      r.ondataavailable = (e) => chunks.push(e.data);
+      r.onstop = () => {
+        stream.getTracks().forEach((t) => t.stop());
+        const mime = r.mimeType || "audio/webm";
+        const file = new File(chunks, `voice-note-${Date.now()}.${mime.includes("mp4") ? "m4a" : "webm"}`, { type: mime.split(";")[0] });
+        const dt = new DataTransfer(); dt.items.add(file);
+        if (input.current) input.current.files = dt.files;
+        setUrl(URL.createObjectURL(file)); setState("done");
+      };
+      rec.current = r; r.start(); setSecs(0); setState("recording");
+    } catch { setState("unsupported"); }
+  }
+  return (
+    <div className="rounded-xl border border-dashed border-gray-300 p-3">
+      <input ref={input} type="file" name={name} className="hidden" />
+      {state === "idle" && <button type="button" className="btn-secondary w-full" onClick={start}>🎙️ Record a voice note</button>}
+      {state === "recording" && <button type="button" className="btn-danger w-full" onClick={() => rec.current?.stop()}>⏹ Stop recording ({secs}s)</button>}
+      {state === "done" && url && (
+        <div className="space-y-1">
+          <audio src={url} controls className="w-full" />
+          <button type="button" className="text-xs font-semibold text-red-700" onClick={() => { if (input.current) input.current.value = ""; setUrl(null); setState("idle"); }}>Delete and re-record</button>
+        </div>
+      )}
+      {state === "unsupported" && <p className="text-xs text-gray-500">Voice recording isn&apos;t available in this browser. You can attach an audio file instead.</p>}
+    </div>
+  );
+}
+
+export function IssueReportForm({ rentalId, role, currency, rooms, types, categories, urgency }: {
+  rentalId: number; role: "owner" | "tenant"; currency: string; rooms: string[];
+  types: Record<string, string>; categories: Record<string, { label: string; icon: string; hint: string }>; urgency: Record<string, string>;
+}) {
+  const [cat, setCat] = useState("other");
+  const [urg, setUrg] = useState("normal");
+  const other = role === "owner" ? "tenant" : "landlord";
+  return (
+    <Form url={`/api/rentals/${rentalId}/issues`} multipart submitLabel={`Send to the ${other}`} extra={{ category: cat, urgency: urg }} onDone={undefined}>
+      <div>
+        <span className="label">What&apos;s the problem about?</span>
+        <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-3">
+          {Object.entries(categories).map(([k, c]) => (
+            <button type="button" key={k} onClick={() => setCat(k)} className={`rounded-xl border px-1.5 py-2 text-center text-xs font-medium ${cat === k ? "border-brand-600 bg-brand-50 text-brand-800" : "border-gray-200 bg-white"}`}>
+              <span className="block text-lg">{c.icon}</span>{c.label}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div>
+        <span className="label">How urgent?</span>
+        <div className="grid grid-cols-3 gap-1.5">
+          {Object.entries(urgency).map(([k, l]) => (
+            <button type="button" key={k} onClick={() => setUrg(k)} className={`rounded-xl border py-2 text-sm font-semibold ${urg === k ? (k === "urgent" ? "border-red-500 bg-red-50 text-red-700" : "border-brand-600 bg-brand-50 text-brand-800") : "border-gray-200"}`}>{l}</button>
+          ))}
+        </div>
+      </div>
+      <div>
+        <label className="label">Type</label>
+        <select name="type" className="input" required defaultValue={role === "owner" ? "upkeep" : "maintenance"}>
+          {Object.entries(types).filter(([k]) => role === "owner" || k !== "upkeep").map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+        </select>
+      </div>
+      <div><label className="label">Room / area</label><input name="room" list="issue-rooms" className="input" placeholder="Optional, e.g. Kitchen, whole apartment" /><datalist id="issue-rooms">{rooms.map((x) => <option key={x} value={x} />)}</datalist></div>
+      <div><label className="label">Short title</label><input name="title" required className="input" placeholder={`e.g. ${categories[cat].label} in the ${cat === "pests" ? "kitchen" : "bathroom"}`} /></div>
+      <div>
+        <label className="label">Describe it</label>
+        <textarea name="description" rows={4} className="input" placeholder={categories[cat].hint} />
+        <p className="mt-1 text-xs text-gray-500">Photos are optional. Not everything can be photographed (smells, noise, pests at night), so describe it, record a voice note, or both.</p>
+      </div>
+      <VoiceRecorder />
+      <FilePickers accept={ACCEPT_MEDIA_AUDIO} />
+      {role === "owner" && (
+        <div className="space-y-2 rounded-xl bg-gray-50 p-3">
+          <p className="text-xs font-semibold text-gray-500">Landlord only (the tenant doesn&apos;t see costs)</p>
+          <div className="grid grid-cols-2 gap-2">
+            <div><label className="label">Cost ({currency})</label><input name="repair_cost" type="number" step="any" min="0" className="input" /></div>
+            <div><label className="label">Paid to / note</label><input name="cost_note" className="input" placeholder="e.g. CoolAir Services" /></div>
+          </div>
+          <label className="flex items-center gap-2 text-sm"><input type="checkbox" name="already_done" value="true" /> Already done (log finished work, e.g. AC service)</label>
+        </div>
+      )}
+    </Form>
   );
 }

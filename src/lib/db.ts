@@ -162,6 +162,20 @@ function open(): Database.Database {
   `);
   const cols = db.prepare("PRAGMA table_info(users)").all() as { name: string }[];
   if (!cols.some((c) => c.name === "account_type")) db.exec("ALTER TABLE users ADD COLUMN account_type TEXT NOT NULL DEFAULT 'tenant'");
+  db.exec(`CREATE TABLE IF NOT EXISTS staff (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    owner_id INTEGER NOT NULL REFERENCES users(id),
+    user_id INTEGER REFERENCES users(id),
+    name TEXT NOT NULL, email TEXT, phone TEXT, trade TEXT,
+    token TEXT NOT NULL UNIQUE,
+    created_at TEXT NOT NULL, accepted_at TEXT, removed_at TEXT
+  )`);
+  const mcols = db.prepare("PRAGMA table_info(media)").all() as { name: string }[];
+  if (!mcols.some((c) => c.name === "preview_name")) db.exec("ALTER TABLE media ADD COLUMN preview_name TEXT; ALTER TABLE media ADD COLUMN preview_mime TEXT; ALTER TABLE media ADD COLUMN preview_status TEXT;");
+  const icols = db.prepare("PRAGMA table_info(issues)").all() as { name: string }[];
+  if (!icols.some((c) => c.name === "repair_cost")) db.exec("ALTER TABLE issues ADD COLUMN repair_cost REAL; ALTER TABLE issues ADD COLUMN cost_note TEXT;");
+  if (!icols.some((c) => c.name === "category")) db.exec("ALTER TABLE issues ADD COLUMN category TEXT; ALTER TABLE issues ADD COLUMN urgency TEXT NOT NULL DEFAULT 'normal';");
+  if (!icols.some((c) => c.name === "assigned_to")) db.exec("ALTER TABLE issues ADD COLUMN assigned_to INTEGER REFERENCES staff(id);");
   return db;
 }
 

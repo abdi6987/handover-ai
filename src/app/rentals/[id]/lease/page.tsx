@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { loadRental } from "@/lib/page";
+import { getUser } from "@/lib/auth";
 import { appUrl } from "@/lib/notify";
 import { db } from "@/lib/db";
 import { Form } from "@/components/client";
@@ -79,7 +80,7 @@ export default async function Lease({ params }: { params: Promise<{ id: string }
         ) : !r[`${other}_signed_at`] && (
           <div className="card flex flex-wrap items-center justify-between gap-3">
             <p className="text-sm">You signed. Waiting for the {other}.</p>
-            <WhatsAppLink text={`I've signed the lease for "${r.name}" on Handover AI. Your turn: ${appUrl(`/rentals/${r.id}/lease`)}`} label="Remind on WhatsApp" />
+            <WhatsAppLink text={`I've signed the lease for "${r.name}" on Handover AI. Your turn: ${appUrl(`/rentals/${r.id}/lease`)}`} label="Remind on WhatsApp" phone={getUser(role === "owner" ? r.tenant_id : r.owner_id)?.phone} />
           </div>
         )}
       </div>

@@ -3,6 +3,8 @@ import { currentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { getRental, roleOf } from "@/lib/rentals";
 import { mediaPath } from "@/lib/storage";
+import { issueAccess } from "@/lib/staff";
+import { previewFile } from "@/lib/preview";
 import type { Media } from "@/lib/types";
 
 export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }) {
@@ -11,15 +13,21 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
   const m = db().prepare("SELECT * FROM media WHERE id = ?").get(Number((await ctx.params).id)) as Media | undefined;
   if (!m) return new Response("Not found", { status: 404 });
   const r = getRental(m.rental_id)!;
-  const role = roleOf(r, user);
+  let role: string | null = roleOf(r, user);
+  if (!role && m.context === "issue" && m.ref_id) {
+    try { role = issueAccess(m.ref_id, user).role; } catch { role = null; }
+  }
   if (!role || (m.context === "bill" && role !== "tenant")) return new Response("Forbidden", { status: 403 });
-  const p = mediaPath(m);
+  const wantPreview = new URL(req.url).searchParams.has("preview");
+  const pv = wantPreview ? previewFile(m) : null;
+  const p = pv && fs.existsSync(pv) ? pv : mediaPath(m);
+  const mime = p === pv ? m.preview_mime! : m.mime;
   if (!fs.existsSync(p)) return new Response("File missing", { status: 410 });
   const size = fs.statSync(p).size;
   const download = new URL(req.url).searchParams.has("download");
   const headers: Record<string, string> = {
-    "Content-Type": m.mime, "Accept-Ranges": "bytes", "Cache-Control": "private, max-age=3600",
-    "X-Content-SHA256": m.sha256,
+    "Content-Type": mime, "Accept-Ranges": "bytes", "Cache-Control": "private, max-age=3600",
+    ...(p === pv ? {} : { "X-Content-SHA256": m.sha256 }),
     "Content-Disposition": `${download ? "attachment" : "inline"}; filename="${encodeURIComponent(m.original_name)}"`,
   };
   const range = req.headers.get("range");

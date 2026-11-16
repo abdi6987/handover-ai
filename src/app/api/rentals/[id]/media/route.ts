@@ -2,6 +2,7 @@ import { bad, handler, str } from "@/lib/api";
 import { audit } from "@/lib/audit";
 import { fullySigned, moveInLocked, rentalForUser } from "@/lib/rentals";
 import { saveUpload } from "@/lib/storage";
+import { detectMime, isPhotoOrVideo } from "@/lib/formats";
 import type { Media } from "@/lib/types";
 
 export const POST = handler(async (req, user, p) => {
@@ -23,7 +24,7 @@ export const POST = handler(async (req, user, p) => {
     if (!title && files.length === 1) bad("Give the document a title");
   } else bad("Unknown upload type");
   for (const f of files) {
-    if (context !== "document" && !/^(image|video)\//.test(f.type)) bad(`${f.name} is not a photo or video`);
+    if (context !== "document" && !isPhotoOrVideo(detectMime(f.name, f.type))) bad(`${f.name} is not a photo or video`);
   }
   const saved = [];
   for (const f of files) {
