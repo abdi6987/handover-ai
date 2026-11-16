@@ -33,7 +33,7 @@ export async function POST(req: Request) {
   const isOwner = accountType === "owner";
 
   const info = await db().prepare(`INSERT INTO users (email, name, phone, account_type, password_hash, created_at, company, property_count, country, city, terms_accepted_at)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?)`).run(email, name, phone, accountType, hashPassword(password), now(),
+    VALUES (?,?,?,?,?,?,?,?,?,?,?)`).run(email, name, phone, accountType, await hashPassword(password), now(),
     isOwner ? str(b.company, 120) || null : null, isOwner && PROPERTY_COUNTS.includes(b.propertyCount) ? b.propertyCount : null,
     str(b.country, 60) || null, str(b.city, 80) || null, now());
   const id = Number(info.lastInsertRowid);

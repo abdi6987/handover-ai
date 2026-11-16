@@ -16,7 +16,7 @@ const LOCK_MINUTES = 20; // longer than the slowest job (video transcode); a cra
 const handlers: Record<JobKind, (p: Record<string, unknown>) => Promise<void>> = {
   async preview(p) {
     const { makePreview } = await import("./preview");
-    const m = await db().get("SELECT * FROM media WHERE id = ?", p.mediaId);
+    const m = await db().get("SELECT * FROM media WHERE id = ?", Number(p.mediaId));
     if (m) await makePreview(m as Parameters<typeof makePreview>[0]);
   },
   async email(p) {

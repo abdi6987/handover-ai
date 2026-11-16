@@ -11,7 +11,7 @@ export async function POST(req: Request) {
   const wait = (await hit(`login:ip:${await clientIp()}`, LIMITS.loginIp)) || (await peek(`login:fail:${email}`, LIMITS.loginFail));
   if (wait) return tooMany(wait);
   const u = await findUserByEmail(email);
-  if (!u || !verifyPassword(String(b.password ?? ""), u.password_hash)) {
+  if (!u || !(await verifyPassword(String(b.password ?? ""), u.password_hash))) {
     await hit(`login:fail:${email}`, LIMITS.loginFail);
     return NextResponse.json({ error: "Wrong email or password" }, { status: 400 });
   }

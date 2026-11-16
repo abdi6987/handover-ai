@@ -277,7 +277,9 @@ const MIGRATIONS: string[] = [
   CREATE INDEX staged_uploads_created ON staged_uploads (created_at);`,
 ];
 
-type Params = unknown[];
+/** Anything but a Promise: passing an un-awaited value into SQL is a type error. */
+export type Param = string | number | bigint | boolean | null | undefined | Date | Buffer | readonly (string | number)[];
+type Params = Param[];
 export type RunResult = { changes: number; lastInsertRowid: number };
 
 const g = globalThis as unknown as { __handoverPool?: Pool; __handoverReady?: Promise<void> };

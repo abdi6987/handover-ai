@@ -100,10 +100,12 @@ COMMON_ENV="APP_URL=${APP_URL},GCS_BUCKET=${BUCKET},JOB_MODE=worker,DISPLAY_TZ=A
 SECRETS="DATABASE_URL=database-url:latest,ANTHROPIC_API_KEY=anthropic-api-key:latest,RESEND_API_KEY=resend-api-key:latest,GOOGLE_CLIENT_SECRET=google-client-secret:latest"
 
 step "Web app (Cloud Run)"
-# 2 instances always warm (no cold starts), up to 30 at peak. 30 x 8 DB connections = 240, well under the 500 allowed.
+# Node renders pages on one core, so many small instances beat a few big ones. The load test measured ~55 requests/s
+# (about 400 people browsing at once) per 1-vCPU instance; concurrency 40 keeps each one below that.
+# 2 instances always warm (no cold starts), up to 60 at peak. 60 x 5 DB connections = 300, under the 500 allowed.
 g run deploy handover-web --image "$IMAGE" --region "$REGION" --service-account "$WEB_SA" \
-  --add-cloudsql-instances "$CONN" --set-env-vars "${COMMON_ENV},PG_POOL_MAX=8" --set-secrets "$SECRETS" \
-  --cpu 2 --memory 2Gi --concurrency 80 --min-instances 2 --max-instances 30 --timeout 300 --cpu-boost \
+  --add-cloudsql-instances "$CONN" --set-env-vars "${COMMON_ENV},PG_POOL_MAX=5" --set-secrets "$SECRETS" \
+  --cpu 1 --memory 1Gi --concurrency 40 --min-instances 2 --max-instances 60 --timeout 300 --cpu-boost \
   --ingress internal-and-cloud-load-balancing --allow-unauthenticated
 
 step "Background worker (Cloud Run): video previews, AI reports, emails"

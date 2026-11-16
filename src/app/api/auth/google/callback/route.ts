@@ -37,7 +37,7 @@ export async function GET(req: Request) {
     const inv = saved.invite ? await getInvite(saved.invite) : null;
     const type = inv && !inv.accepted_at ? inv.role : saved.as;
     const r = await db().prepare("INSERT INTO users (email, name, account_type, password_hash, created_at, google_id, email_verified_at, terms_accepted_at) VALUES (?,?,?,?,?,?,?,?)")
-      .run(email, (info.name || email.split("@")[0]).slice(0, 100), type, hashPassword(crypto.randomBytes(32).toString("hex")), now(), info.sub, now(), now());
+      .run(email, (info.name || email.split("@")[0]).slice(0, 100), type, await hashPassword(crypto.randomBytes(32).toString("hex")), now(), info.sub, now(), now());
     user = await db().prepare("SELECT * FROM users WHERE id = ?").get(Number(r.lastInsertRowid)) as User;
     await audit(null, user.id, "user.signup", { email, type, via: "google" });
   } else {

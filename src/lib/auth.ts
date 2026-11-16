@@ -1,20 +1,25 @@
 import crypto from "node:crypto";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { cache } from "react";
 import { db, now } from "./db";
 import type { User } from "./types";
 
 const COOKIE = "handover_session";
 
-export function hashPassword(pw: string): string {
+// Async scrypt runs on libuv's thread pool, so a burst of logins never freezes other requests on the same server.
+const scrypt = (pw: string, salt: string) =>
+  new Promise<Buffer>((res, rej) => crypto.scrypt(pw, salt, 64, (e, k) => (e ? rej(e) : res(k))));
+
+export async function hashPassword(pw: string): Promise<string> {
   const salt = crypto.randomBytes(16).toString("hex");
-  const hash = crypto.scryptSync(pw, salt, 64).toString("hex");
-  return `${salt}:${hash}`;
+  return `${salt}:${(await scrypt(pw, salt)).toString("hex")}`;
 }
 
-export function verifyPassword(pw: string, stored: string): boolean {
+export async function verifyPassword(pw: string, stored: string): Promise<boolean> {
   const [salt, hash] = stored.split(":");
-  const test = crypto.scryptSync(pw, salt, 64);
+  if (!salt || !hash) return false;
+  const test = await scrypt(pw, salt);
   const known = Buffer.from(hash, "hex");
   return known.length === test.length && crypto.timingSafeEqual(known, test);
 }
@@ -36,7 +41,8 @@ export async function destroySession() {
   c.delete(COOKIE);
 }
 
-export async function currentUser(): Promise<User | null> {
+/** The signed-in user. Cached per request, so the layout and the page share one database lookup. */
+export const currentUser = cache(async (): Promise<User | null> => {
   const token = (await cookies()).get(COOKIE)?.value;
   if (!token) return null;
   const row = await db()
@@ -46,7 +52,7 @@ export async function currentUser(): Promise<User | null> {
     )
     .get(token, now()) as User | undefined;
   return row ?? null;
-}
+});
 
 /** Logged-in user for a page. Unconfirmed emails are sent to /verify-email unless allowUnverified. */
 export async function requireUser(opts: { allowUnverified?: boolean } = {}): Promise<User> {

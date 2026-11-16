@@ -17,28 +17,34 @@ Move-in and move-out proof, leases, repairs and reports for tenants and landlord
 
 ## Run it
 
-Requires Node 20+ and `ffmpeg`/`ffprobe` on the PATH (used to pull frames from videos).
+Requires Node 22+, Docker (for Postgres) and `ffmpeg`/`ffprobe` on the PATH (used to pull frames from videos).
 
 ```bash
 cp .env.example .env.local   # add ANTHROPIC_API_KEY (and RESEND_API_KEY if you want real emails)
+docker compose up -d db      # PostgreSQL 16 on localhost:5432; tables are created on first start
 npm install
 npm run dev                   # http://localhost:3000
 ```
 
-Production: `npm run build && npm start`. Data lives in `./data` (SQLite + uploads); back that folder up.
+Production runs on Google Cloud in Doha (Cloud Run, Cloud SQL, Cloud Storage): see [deploy/README.md](deploy/README.md).
 
 ## Tech
 
-Next.js 15 (App Router, TypeScript, Tailwind), SQLite via better-sqlite3, local file storage, ffmpeg, Anthropic SDK (`claude-opus-5-5`, structured JSON output, server-side refusal fallback).
+Next.js 15 (App Router, TypeScript, Tailwind), PostgreSQL (`pg`), Google Cloud Storage (local disk in dev), a Postgres-backed job queue and worker, ffmpeg, Anthropic SDK (`claude-opus-5-5`, structured JSON output, server-side refusal fallback).
 
 ## Where things live
 
 - `src/lib/rentals.ts`: access rules, seal, signature hashes, verification
-- `src/lib/audit.ts`: hash-chained activity log
+- `src/lib/audit.ts`: hash-chained activity log, one chain per rental
+- `src/lib/db.ts`: Postgres pool, schema migrations, transactions
+- `src/lib/blobstore.ts`, `src/lib/storage.ts`: file storage (local disk or Cloud Storage), upload fingerprinting
+- `src/lib/jobs.ts`, `src/worker.ts`: background jobs (previews, AI reports, emails)
+- `src/lib/ratelimit.ts`: shared rate limits
+- `deploy/`: Google Cloud setup script, guide and load test
 - `src/lib/ai.ts`, `src/lib/video.ts`: move-out comparison and frame extraction
 - `src/app/api/**`: all actions (each checks the user's role on the rental)
 - `src/app/rentals/[id]/**`: rental screens (move-in, lease, issues, move-out, documents, spending, timeline, proof)
 
 ## Next steps for production
 
-Swap SQLite/local files for Postgres + S3 (or similar), add password reset and email verification, add a trusted timestamping service (RFC 3161) for the seal, and wrap the site as an iOS/Android app (e.g. Capacitor) once the flows are settled.
+Add a trusted timestamping service (RFC 3161) for the seal, and wrap the site as an iOS/Android app (e.g. Capacitor) once the flows are settled.
