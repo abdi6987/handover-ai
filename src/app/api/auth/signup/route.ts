@@ -20,24 +20,24 @@ export async function POST(req: Request) {
   if (password.length < 8) return err("Password must be at least 8 characters");
   if (password.toLowerCase().includes(email.split("@")[0]) && email.split("@")[0].length > 3) return err("Choose a password that doesn't contain your email name");
   if (b.terms !== true && b.terms !== "on") return err("Please accept the terms and privacy policy");
-  if (findUserByEmail(email)) return err("An account with this email already exists. Log in instead.");
+  if (await findUserByEmail(email)) return err("An account with this email already exists. Log in instead.");
 
   const token = inviteToken(b.invite || b.inviteCode);
-  const inv = token ? getInvite(token) : null;
+  const inv = token ? await getInvite(token) : null;
   if (token && (!inv || inv.accepted_at)) return err("That invite code isn't valid or was already used. Ask for a new one, or leave it empty.");
-  const staffInv = b.staff ? staffByToken(String(b.staff)) : null;
+  const staffInv = b.staff ? await staffByToken(String(b.staff)) : null;
   const accountType: User["account_type"] = b.staff ? "staff" : inv ? inv.role : b.accountType === "owner" ? "owner" : "tenant";
   const isOwner = accountType === "owner";
 
-  const info = db().prepare(`INSERT INTO users (email, name, phone, account_type, password_hash, created_at, company, property_count, country, city, terms_accepted_at)
+  const info = await db().prepare(`INSERT INTO users (email, name, phone, account_type, password_hash, created_at, company, property_count, country, city, terms_accepted_at)
     VALUES (?,?,?,?,?,?,?,?,?,?,?)`).run(email, name, phone, accountType, hashPassword(password), now(),
     isOwner ? str(b.company, 120) || null : null, isOwner && PROPERTY_COUNTS.includes(b.propertyCount) ? b.propertyCount : null,
     str(b.country, 60) || null, str(b.city, 80) || null, now());
   const id = Number(info.lastInsertRowid);
-  audit(null, id, "user.signup", { email, type: accountType });
+  await audit(null, id, "user.signup", { email, type: accountType });
   // Someone who arrived from an invite sent to this exact address has already proven they own it.
   const invitedEmail = (inv?.email && inv.email === email) || (staffInv?.email && staffInv.email.toLowerCase() === email);
-  if (invitedEmail) markVerified(id);
+  if (invitedEmail) await markVerified(id);
   await createSession(id);
 
   let redirect = accountType === "owner" ? "/dashboard/landlord" : accountType === "staff" ? "/dashboard/staff" : "/dashboard/tenant";
@@ -46,7 +46,7 @@ export async function POST(req: Request) {
     catch (e) { if (!(e instanceof HttpError)) throw e; }
   }
   if (b.staff) {
-    try { await acceptStaff(String(b.staff), getUser(id)!); redirect = "/dashboard/staff"; }
+    try { await acceptStaff(String(b.staff), (await getUser(id))!); redirect = "/dashboard/staff"; }
     catch (e) { if (!(e instanceof HttpError)) throw e; redirect = `/staff-invite/${b.staff}`; }
   }
   if (!invitedEmail) {

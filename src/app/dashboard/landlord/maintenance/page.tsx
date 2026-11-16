@@ -13,8 +13,8 @@ export default async function MaintenanceLog({ searchParams }: { searchParams: P
   const t = await getT();
   const user = await requireUser();
   const sp = await searchParams;
-  const { rentals, rows } = landlordLog(user.id);
-  const team = staffOf(user.id);
+  const { rentals, rows } = await landlordLog(user.id);
+  const team = await staffOf(user.id);
   const year = new Date().getFullYear().toString();
   const cur = rentals[0]?.currency ?? "QAR";
   const shown = rows.filter((r) =>

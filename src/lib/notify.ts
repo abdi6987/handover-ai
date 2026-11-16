@@ -8,7 +8,7 @@ export function appUrl(path = "") {
 /** Store every email in the outbox (visible in the in-app test inbox) and send through Resend when configured. */
 export async function sendEmail(to: string, subject: string, body: string, path?: string) {
   const link = path ? appUrl(path) : null;
-  const info = db().prepare("INSERT INTO outbox (to_email, subject, body, link, created_at) VALUES (?,?,?,?,?)")
+  const info = await db().prepare("INSERT INTO outbox (to_email, subject, body, link, created_at) VALUES (?,?,?,?,?)")
     .run(to.toLowerCase(), subject, body, link, now());
   const key = process.env.RESEND_API_KEY;
   if (!key) return;
@@ -23,15 +23,15 @@ export async function sendEmail(to: string, subject: string, body: string, path?
       body: JSON.stringify({ from: process.env.EMAIL_FROM || "Handover AI <onboarding@resend.dev>", to: [to], subject, html, text: `${body}\n\n${link ?? ""}` }),
     });
     if (!res.ok) throw new Error(`${res.status} ${await res.text()}`);
-    db().prepare("UPDATE outbox SET delivered = 1 WHERE id = ?").run(info.lastInsertRowid);
+    await db().prepare("UPDATE outbox SET delivered = 1 WHERE id = ?").run(info.lastInsertRowid);
   } catch (e) {
-    db().prepare("UPDATE outbox SET error = ? WHERE id = ?").run(String(e).slice(0, 500), info.lastInsertRowid);
+    await db().prepare("UPDATE outbox SET error = ? WHERE id = ?").run(String(e).slice(0, 500), info.lastInsertRowid);
   }
 }
 
 /** Notify a rental participant by user id (no-op if they haven't joined yet). */
 export async function notifyUser(userId: number | null, subject: string, body: string, path: string) {
-  const u = getUser(userId);
+  const u = await getUser(userId);
   if (u) await sendEmail(u.email, subject, body, path);
 }
 

@@ -12,7 +12,7 @@ export default async function RentalLayout({ children, params }: { children: Rea
   const { id } = await params;
   const { rental, role } = await loadRental(id);
   const s = stage(rental);
-  const open = (db().prepare("SELECT COUNT(*) n FROM issues WHERE rental_id = ? AND status != 'done'").get(rental.id) as { n: number }).n;
+  const open = (await db().prepare("SELECT COUNT(*) n FROM issues WHERE rental_id = ? AND status != 'done'").get(rental.id) as { n: number }).n;
   const tabs = [
     { href: "", label: t("Overview") },
     { href: "/move-in", label: t("Move-in") },

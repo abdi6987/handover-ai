@@ -41,19 +41,19 @@ export async function saveUpload(
   await new Promise<void>((res, rej) => out.end((err?: Error | null) => (err ? rej(err) : res())));
   fs.chmodSync(path.join(dir, stored), 0o444); // read-only on disk
   const mime = detectMime(file.name, file.type);
-  const info = db()
+  const info = await db()
     .prepare(
       `INSERT INTO media (rental_id, context, ref_id, room, title, kind, original_name, stored_name, mime, size, sha256, uploaded_by, uploaded_at)
        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`
     )
     .run(opts.rentalId, opts.context, opts.refId ?? null, opts.room ?? null, opts.title ?? null, mediaKind(mime), file.name.slice(0, 200), stored, mime, file.size, hasher.digest("hex"), opts.userId, now());
-  const media = db().prepare("SELECT * FROM media WHERE id = ?").get(info.lastInsertRowid) as Media;
+  const media = await db().prepare("SELECT * FROM media WHERE id = ?").get(info.lastInsertRowid) as Media;
   if (media.kind === "photo") await makePreview(media); // quick: done before responding
   else if (media.kind === "video" || media.kind === "audio") {
-    db().prepare("UPDATE media SET preview_status = 'processing' WHERE id = ?").run(media.id);
+    await db().prepare("UPDATE media SET preview_status = 'processing' WHERE id = ?").run(media.id);
     void makePreview(media); // can take a while: runs in the background, page shows "processing"
   }
-  return db().prepare("SELECT * FROM media WHERE id = ?").get(media.id) as Media;
+  return await db().prepare("SELECT * FROM media WHERE id = ?").get(media.id) as Media;
 }
 
 export function hashFileOnDisk(m: Media): string | null {

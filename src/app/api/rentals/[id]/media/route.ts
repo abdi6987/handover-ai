@@ -6,7 +6,7 @@ import { detectMime, isPhotoOrVideo } from "@/lib/formats";
 import type { Media } from "@/lib/types";
 
 export const POST = handler(async (req, user, p) => {
-  const { rental } = rentalForUser(Number(p.id), user);
+  const { rental } = await rentalForUser(Number(p.id), user);
   const form = await req.formData();
   const context = str(form.get("context")) as Media["context"];
   const room = str(form.get("room"), 60) || null;
@@ -29,7 +29,7 @@ export const POST = handler(async (req, user, p) => {
   const saved = [];
   for (const f of files) {
     const m = await saveUpload(f, { rentalId: rental.id, context, room, title: title ?? f.name, userId: user.id });
-    audit(rental.id, user.id, `media.uploaded`, { media_id: m.id, context, room, name: m.original_name, sha256: m.sha256, size: m.size });
+    await audit(rental.id, user.id, `media.uploaded`, { media_id: m.id, context, room, name: m.original_name, sha256: m.sha256, size: m.size });
     saved.push(m.id);
   }
   return { ids: saved };

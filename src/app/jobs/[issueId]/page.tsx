@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { getT } from "@/lib/i18n";
 import { notFound } from "next/navigation";
-import { getUser, requireUser } from "@/lib/auth";
+import { getUser, requireUser, userNames } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { appUrl, waNumber } from "@/lib/notify";
 import { getStaff, issueAccess } from "@/lib/staff";
@@ -19,13 +19,14 @@ export default async function JobPage({ params }: { params: Promise<{ issueId: s
   const { issueId } = await params;
   const user = await requireUser();
   let access;
-  try { access = issueAccess(Number(issueId), user); } catch (e) { if (e instanceof HttpError) notFound(); throw e; }
+  try { access = await issueAccess(Number(issueId), user); } catch (e) { if (e instanceof HttpError) notFound(); throw e; }
   const { issue, rental: r, role } = access;
   if (role !== "staff") return <div className="card"><Link className="font-semibold text-brand-700" href={`/rentals/${r.id}/issues/${issue.id}`}>Open this issue →</Link></div>;
-  const tenant = getUser(r.tenant_id), owner = getUser(r.owner_id), assignee = getStaff(issue.assigned_to);
-  const updates = db().prepare("SELECT * FROM issue_updates WHERE issue_id = ? ORDER BY id").all(issue.id) as Update[];
-  const media = db().prepare("SELECT * FROM media WHERE context='issue' AND ref_id=? AND deleted_at IS NULL ORDER BY id").all(issue.id) as Media[];
-  const nameOf = (id: number) => getUser(id)?.name ?? "";
+  const tenant = await getUser(r.tenant_id), owner = await getUser(r.owner_id), assignee = await getStaff(issue.assigned_to);
+  const updates = await db().prepare("SELECT * FROM issue_updates WHERE issue_id = ? ORDER BY id").all(issue.id) as Update[];
+  const media = await db().prepare("SELECT * FROM media WHERE context='issue' AND ref_id=? AND deleted_at IS NULL ORDER BY id").all(issue.id) as Media[];
+  const userName = await userNames([issue.reported_by, ...updates.map((u) => u.user_id), ...media.map((m) => m.uploaded_by)]);
+  const nameOf = (id: number) => userName.get(id) ?? "";
   const initial = media.filter((m) => !m.title?.startsWith("update:"));
   const forUpdate = (uid: number) => media.filter((m) => m.title === `update:${uid}`);
   const statuses = (["acknowledged", "in_progress", "done"] as Issue["status"][]).filter((s) => s !== issue.status);

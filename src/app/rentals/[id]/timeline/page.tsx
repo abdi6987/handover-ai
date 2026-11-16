@@ -32,7 +32,7 @@ export default async function Timeline({ params }: { params: Promise<{ id: strin
   const t = await getT();
   const { id } = await params;
   const { rental: r } = await loadRental(id);
-  const rows = rentalAudit(r.id);
+  const rows = await rentalAudit(r.id);
   return (
     <div className="card space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">

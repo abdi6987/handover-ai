@@ -11,7 +11,7 @@ export default async function MoveIn({ params }: { params: Promise<{ id: string 
   const t = await getT();
   const { id } = await params;
   const { user, rental: r, role, names } = await loadRental(id);
-  const media = mediaFor(r.id, "move_in");
+  const media = await mediaFor(r.id, "move_in");
   const locked = moveInLocked(r);
   const byRoom = groupByRoom(media);
   const both = r.owner_id && r.tenant_id;
@@ -78,7 +78,7 @@ export default async function MoveIn({ params }: { params: Promise<{ id: string 
       {r.movein_status === "submitted" && role === "tenant" && (
         <div className="card flex flex-wrap items-center justify-between gap-3">
           <p className="text-sm">{t("Waiting for")} {names.get(r.owner_id ?? 0) ?? "the owner"} {t("to approve. They've been emailed.")}</p>
-          <WhatsAppLink text={`Hi, I've uploaded the move-in photos for "${r.name}" on Handover AI. Please review and approve them so we can sign the lease: ${link}`} label={t("Remind on WhatsApp")} phone={getUser(r.owner_id)?.phone} />
+          <WhatsAppLink text={`Hi, I've uploaded the move-in photos for "${r.name}" on Handover AI. Please review and approve them so we can sign the lease: ${link}`} label={t("Remind on WhatsApp")} phone={(await getUser(r.owner_id))?.phone} />
         </div>
       )}
     </div>

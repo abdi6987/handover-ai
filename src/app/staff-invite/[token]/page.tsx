@@ -8,9 +8,9 @@ import { EmptyState } from "@/components/ui";
 export default async function StaffInvite({ params }: { params: Promise<{ token: string }> }) {
   const t = await getT();
   const { token } = await params;
-  const s = staffByToken(token);
+  const s = await staffByToken(token);
   if (!s) return <EmptyState title="This staff invite isn't valid" href="/" cta="Go home" />;
-  const owner = getUser(s.owner_id);
+  const owner = await getUser(s.owner_id);
   const user = await currentUser();
   return (
     <div className="mx-auto max-w-md py-6">

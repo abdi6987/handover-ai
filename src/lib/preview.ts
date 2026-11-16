@@ -54,28 +54,28 @@ export async function makePreview(m: Media) {
   const d = db();
   try {
     if (m.kind === "photo") {
-      if (BROWSER_IMAGE.has(m.mime)) return d.prepare("UPDATE media SET preview_status = 'none' WHERE id = ?").run(m.id);
+      if (BROWSER_IMAGE.has(m.mime)) return await d.prepare("UPDATE media SET preview_status = 'none' WHERE id = ?").run(m.id);
       const out = previewPath(m, ".jpg");
       fs.mkdirSync(path.dirname(out), { recursive: true });
       const ok = await imageToJpeg(m, out);
-      d.prepare("UPDATE media SET preview_name = ?, preview_mime = ?, preview_status = ? WHERE id = ?").run(ok ? path.basename(out) : null, ok ? "image/jpeg" : null, ok ? "ready" : "failed", m.id);
+      await d.prepare("UPDATE media SET preview_name = ?, preview_mime = ?, preview_status = ? WHERE id = ?").run(ok ? path.basename(out) : null, ok ? "image/jpeg" : null, ok ? "ready" : "failed", m.id);
     } else if (m.kind === "audio") {
-      if (["audio/mp4", "audio/mpeg", "audio/aac", "audio/wav"].includes(m.mime)) return d.prepare("UPDATE media SET preview_status = 'none' WHERE id = ?").run(m.id);
+      if (["audio/mp4", "audio/mpeg", "audio/aac", "audio/wav"].includes(m.mime)) return await d.prepare("UPDATE media SET preview_status = 'none' WHERE id = ?").run(m.id);
       const out = previewPath(m, ".m4a");
       fs.mkdirSync(path.dirname(out), { recursive: true });
       await run("ffmpeg", ["-y", "-loglevel", "error", "-i", mediaPath(m), "-vn", "-c:a", "aac", "-b:a", "96k", out]);
-      d.prepare("UPDATE media SET preview_name = ?, preview_mime = 'audio/mp4', preview_status = 'ready' WHERE id = ?").run(path.basename(out), m.id);
+      await d.prepare("UPDATE media SET preview_name = ?, preview_mime = 'audio/mp4', preview_status = 'ready' WHERE id = ?").run(path.basename(out), m.id);
     } else if (m.kind === "video") {
-      if (!(await needsVideoTranscode(mediaPath(m), m.mime))) return d.prepare("UPDATE media SET preview_status = 'none' WHERE id = ?").run(m.id);
+      if (!(await needsVideoTranscode(mediaPath(m), m.mime))) return await d.prepare("UPDATE media SET preview_status = 'none' WHERE id = ?").run(m.id);
       const out = previewPath(m, ".mp4");
       fs.mkdirSync(path.dirname(out), { recursive: true });
-      d.prepare("UPDATE media SET preview_status = 'processing' WHERE id = ?").run(m.id);
+      await d.prepare("UPDATE media SET preview_status = 'processing' WHERE id = ?").run(m.id);
       await videoToMp4(m, out);
-      d.prepare("UPDATE media SET preview_name = ?, preview_mime = 'video/mp4', preview_status = 'ready' WHERE id = ?").run(path.basename(out), m.id);
+      await d.prepare("UPDATE media SET preview_name = ?, preview_mime = 'video/mp4', preview_status = 'ready' WHERE id = ?").run(path.basename(out), m.id);
     }
   } catch (e) {
     console.warn("preview failed", m.id, e);
-    d.prepare("UPDATE media SET preview_status = 'failed' WHERE id = ?").run(m.id);
+    await d.prepare("UPDATE media SET preview_status = 'failed' WHERE id = ?").run(m.id);
   }
 }
 

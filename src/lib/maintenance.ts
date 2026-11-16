@@ -4,9 +4,9 @@ import type { Issue, Rental } from "./types";
 export type LogRow = Issue & { assignee_name: string | null; rental_name: string; reporter_name: string; reporter_role: "tenant" | "owner"; updates: number; last_activity: string };
 
 /** Every issue across all properties the landlord owns, with who reported it and latest activity. */
-export function landlordLog(ownerId: number) {
-  const rentals = db().prepare("SELECT * FROM rentals WHERE owner_id = ? ORDER BY name").all(ownerId) as Rental[];
-  const rows = db().prepare(`
+export async function landlordLog(ownerId: number) {
+  const rentals = await db().prepare("SELECT * FROM rentals WHERE owner_id = ? ORDER BY name").all(ownerId) as Rental[];
+  const rows = await db().prepare(`
     SELECT i.*, r.name rental_name, u.name reporter_name, (SELECT name FROM staff s WHERE s.id = i.assigned_to) assignee_name,
       CASE WHEN i.reported_by = r.owner_id THEN 'owner' ELSE 'tenant' END reporter_role,
       (SELECT COUNT(*) FROM issue_updates x WHERE x.issue_id = i.id) updates,

@@ -5,7 +5,7 @@ import { membershipsOf, staffJobs } from "@/lib/staff";
 import { Badge, fmt } from "@/components/ui";
 import { ISSUE_CATEGORIES, ISSUE_STATUS, ISSUE_TYPES } from "@/lib/types";
 
-type Job = ReturnType<typeof staffJobs>[number];
+type Job = Awaited<ReturnType<typeof staffJobs>>[number];
 const tone = (s: string) => (s === "done" ? "green" : s === "reported" ? "amber" : "blue") as "green" | "amber" | "blue";
 
 async function JobCard({ j }: { j: Job }) {
@@ -27,8 +27,8 @@ async function JobCard({ j }: { j: Job }) {
 export default async function StaffDashboard() {
   const t = await getT();
   const user = await requireUser();
-  const teams = membershipsOf(user.id);
-  const jobs = staffJobs(user.id);
+  const teams = await membershipsOf(user.id);
+  const jobs = await staffJobs(user.id);
   const mine = jobs.filter((j) => j.assignee_user === user.id && j.status !== "done");
   const others = jobs.filter((j) => j.assignee_user !== user.id && j.status !== "done");
   const done = jobs.filter((j) => j.status === "done" && j.assignee_user === user.id).slice(0, 10);

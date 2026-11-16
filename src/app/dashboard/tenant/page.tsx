@@ -10,10 +10,10 @@ import { BILL_CATEGORIES } from "@/lib/types";
 export default async function TenantDashboard() {
   const t = await getT();
   const user = await requireUser();
-  const { rentals, todos, openIssues, names } = dashboardData(user, "tenant", t);
+  const { rentals, todos, openIssues, names } = await dashboardData(user, "tenant", t);
   const month = new Date().toISOString().slice(0, 7);
-  const bills = db().prepare("SELECT category, SUM(amount) total FROM bills WHERE user_id = ? AND period = ? GROUP BY category").all(user.id, month) as { category: keyof typeof BILL_CATEGORIES; total: number }[];
-  const unpaid = (db().prepare("SELECT COALESCE(SUM(amount),0) s, COUNT(*) n FROM bills WHERE user_id = ? AND paid_at IS NULL").get(user.id) as { s: number; n: number });
+  const bills = await db().prepare("SELECT category, SUM(amount) total FROM bills WHERE user_id = ? AND period = ? GROUP BY category").all(user.id, month) as { category: keyof typeof BILL_CATEGORIES; total: number }[];
+  const unpaid = (await db().prepare("SELECT COALESCE(SUM(amount),0) s, COUNT(*) n FROM bills WHERE user_id = ? AND paid_at IS NULL").get(user.id) as { s: number; n: number });
   const monthTotal = bills.reduce((s, b) => s + b.total, 0);
   const home = rentals.find((r) => !r.ended_at) ?? rentals[0];
   const cur = home?.currency ?? "QAR";

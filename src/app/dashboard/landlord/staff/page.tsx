@@ -10,8 +10,9 @@ import { appUrl } from "@/lib/notify";
 export default async function StaffPage() {
   const t = await getT();
   const user = await requireUser();
-  const staff = staffOf(user.id);
-  const counts = (id: number) => db().prepare("SELECT SUM(status != 'done') open, SUM(status = 'done') done FROM issues WHERE assigned_to = ?").get(id) as { open: number | null; done: number | null };
+  const staff = await staffOf(user.id);
+  const rows = (await db().all("SELECT assigned_to, COUNT(*) FILTER (WHERE status <> 'done') open, COUNT(*) FILTER (WHERE status = 'done') done FROM issues WHERE assigned_to = ANY(?::bigint[]) GROUP BY assigned_to", staff.map((s) => s.id))) as { assigned_to: number; open: number; done: number }[];
+  const counts = (id: number) => rows.find((r) => r.assigned_to === id) ?? { open: 0, done: 0 };
   return (
     <div className="space-y-5">
       <div>

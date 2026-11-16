@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { getT } from "@/lib/i18n";
 import { loadRental } from "@/lib/page";
 import { ACCEPT_MEDIA_AUDIO } from "@/lib/formats";
-import { getUser } from "@/lib/auth";
+import { getUser, userNames } from "@/lib/auth";
 import { getStaff, staffOf } from "@/lib/staff";
 import { db } from "@/lib/db";
 import { appUrl } from "@/lib/notify";
@@ -18,15 +18,17 @@ export default async function IssuePage({ params, searchParams }: { params: Prom
   const { id, issueId } = await params;
   const { new: isNew } = await searchParams;
   const { user, rental: r, role, names } = await loadRental(id);
-  const issue = db().prepare("SELECT * FROM issues WHERE id = ? AND rental_id = ?").get(Number(issueId), r.id) as Issue | undefined;
+  const issue = await db().prepare("SELECT * FROM issues WHERE id = ? AND rental_id = ?").get(Number(issueId), r.id) as Issue | undefined;
   if (!issue) notFound();
-  const updates = db().prepare("SELECT * FROM issue_updates WHERE issue_id = ? ORDER BY id").all(issue.id) as Update[];
-  const media = db().prepare("SELECT * FROM media WHERE context='issue' AND ref_id=? AND deleted_at IS NULL ORDER BY id").all(issue.id) as Media[];
+  const updates = await db().prepare("SELECT * FROM issue_updates WHERE issue_id = ? ORDER BY id").all(issue.id) as Update[];
+  const media = await db().prepare("SELECT * FROM media WHERE context='issue' AND ref_id=? AND deleted_at IS NULL ORDER BY id").all(issue.id) as Media[];
   const initial = media.filter((m) => !m.title?.startsWith("update:"));
   const forUpdate = (uid: number) => media.filter((m) => m.title === `update:${uid}`);
-  const assignee = getStaff(issue.assigned_to);
-  const team = role === "owner" ? staffOf(user.id) : [];
-  const otherUser = getUser(role === "owner" ? r.tenant_id : r.owner_id);
+  const assignee = await getStaff(issue.assigned_to);
+  const extraNames = await userNames([issue.done_by, ...updates.map((u) => u.user_id), ...media.map((m) => m.uploaded_by)]);
+  const nameOf = (id: number | null) => (id ? names.get(id) ?? extraNames.get(id) : undefined);
+  const team = role === "owner" ? await staffOf(user.id) : [];
+  const otherUser = await getUser(role === "owner" ? r.tenant_id : r.owner_id);
   const waText = `${t(ISSUE_TYPES[issue.type])} at "${r.name}"${issue.room ? ` (${issue.room})` : ""}: ${issue.title}${issue.description ? `\n${issue.description}` : ""}\n\nPhotos and updates: ${appUrl(`/rentals/${r.id}/issues/${issue.id}`)}`;
   const next = Object.keys(ISSUE_STATUS).filter((s) => s !== issue.status) as Issue["status"][];
   return (
@@ -56,7 +58,7 @@ export default async function IssuePage({ params, searchParams }: { params: Prom
         {initial.length > 0 && <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">{initial.map((m) => <MediaTile key={m.id} m={m} uploader={names.get(m.uploaded_by)} />)}</div>}
         {issue.status === "done" && (
           <div className="rounded-lg bg-green-50 p-3 text-sm text-green-900">
-            ✅ {t("Marked Done by {name} on {date}.", { name: names.get(issue.done_by ?? 0) ?? getUser(issue.done_by)?.name ?? "", date: fmt(issue.done_at) })}
+            ✅ {t("Marked Done by {name} on {date}.", { name: nameOf(issue.done_by) ?? "", date: fmt(issue.done_at) })}
             {" "}{issue.confirmed_at ? t("Confirmed by {name} on {date}.", { name: names.get(issue.confirmed_by ?? 0) ?? "", date: fmt(issue.confirmed_at) }) : t("Waiting for the other side to confirm.")}
           </div>
         )}
@@ -68,9 +70,9 @@ export default async function IssuePage({ params, searchParams }: { params: Prom
           <li className="text-sm"><span className="font-medium">{names.get(issue.reported_by)}</span> {t("reported this")} <span className="text-gray-500">· {fmt(issue.created_at)}</span></li>
           {updates.map((u) => (
             <li key={u.id} className="space-y-1 text-sm">
-              <p><span className="font-medium">{names.get(u.user_id) ?? getUser(u.user_id)?.name}</span>{u.status ? <> {t("set status to")} <Badge tone={tone(u.status)}>{t(ISSUE_STATUS[u.status as Issue["status"]])}</Badge></> : ` ${t("commented")}`} <span className="text-gray-500">· {fmt(u.created_at)}</span></p>
+              <p><span className="font-medium">{nameOf(u.user_id)}</span>{u.status ? <> {t("set status to")} <Badge tone={tone(u.status)}>{t(ISSUE_STATUS[u.status as Issue["status"]])}</Badge></> : ` ${t("commented")}`} <span className="text-gray-500">· {fmt(u.created_at)}</span></p>
               {u.body && <p className="whitespace-pre-line rounded-lg bg-gray-50 p-2">{u.body}</p>}
-              {forUpdate(u.id).length > 0 && <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">{forUpdate(u.id).map((m) => <MediaTile key={m.id} m={m} uploader={names.get(m.uploaded_by) ?? getUser(m.uploaded_by)?.name} />)}</div>}
+              {forUpdate(u.id).length > 0 && <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">{forUpdate(u.id).map((m) => <MediaTile key={m.id} m={m} uploader={nameOf(m.uploaded_by)} />)}</div>}
             </li>
           ))}
         </ol>

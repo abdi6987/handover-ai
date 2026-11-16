@@ -14,9 +14,10 @@ export default async function Issues({ params, searchParams }: { params: Promise
   const { id } = await params;
   const { filter = "all" } = await searchParams;
   const { rental: r, role } = await loadRental(id);
-  const all = issuesFor(r.id);
+  const all = await issuesFor(r.id);
   const shown = all.filter((i) => filter === "all" || (filter === "open" ? i.status !== "done" : filter === "done" ? i.status === "done" : i.type === filter));
-  const photoCount = (iid: number) => (db().prepare("SELECT COUNT(*) n FROM media WHERE context='issue' AND ref_id=? AND deleted_at IS NULL").get(iid) as { n: number }).n;
+  const counts = new Map(((await db().all("SELECT ref_id, COUNT(*) n FROM media WHERE rental_id = ? AND context='issue' AND deleted_at IS NULL GROUP BY ref_id", r.id)) as { ref_id: number; n: number }[]).map((c) => [c.ref_id, c.n]));
+  const photoCount = (iid: number) => counts.get(iid) ?? 0;
   const base = `/rentals/${r.id}/issues`;
   const filters = [["all", "All"], ["open", "Open"], ["done", "Done"], ["maintenance", "Maintenance"], ["damage", "Breakage"], ["wear_tear", "Wear & tear"], ["upkeep", "Upkeep"]];
   return (

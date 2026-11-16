@@ -10,12 +10,12 @@ import type { Media } from "@/lib/types";
 export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const user = await currentUser();
   if (!user) return new Response("Please log in", { status: 401 });
-  const m = db().prepare("SELECT * FROM media WHERE id = ?").get(Number((await ctx.params).id)) as Media | undefined;
+  const m = await db().prepare("SELECT * FROM media WHERE id = ?").get(Number((await ctx.params).id)) as Media | undefined;
   if (!m) return new Response("Not found", { status: 404 });
-  const r = getRental(m.rental_id)!;
+  const r = (await getRental(m.rental_id))!;
   let role: string | null = roleOf(r, user);
   if (!role && m.context === "issue" && m.ref_id) {
-    try { role = issueAccess(m.ref_id, user).role; } catch { role = null; }
+    try { role = (await issueAccess(m.ref_id, user)).role; } catch { role = null; }
   }
   if (!role || (m.context === "bill" && role !== "tenant")) return new Response("Forbidden", { status: 403 });
   const wantPreview = new URL(req.url).searchParams.has("preview");
