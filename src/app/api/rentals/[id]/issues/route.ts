@@ -2,7 +2,7 @@ import { bad, handler, num, str } from "@/lib/api";
 import { audit } from "@/lib/audit";
 import { db, now } from "@/lib/db";
 import { otherPartyId, rentalForUser } from "@/lib/rentals";
-import { saveUpload } from "@/lib/storage";
+import { formUploads, saveUpload } from "@/lib/storage";
 import { notifyUser } from "@/lib/notify";
 import { ISSUE_CATEGORIES, ISSUE_TYPES, URGENCY, type Issue } from "@/lib/types";
 
@@ -16,7 +16,7 @@ export const POST = handler(async (req, user, p) => {
   if (!(category in ISSUE_CATEGORIES)) bad("Pick a category");
   const urgency = (["urgent", "normal", "low"].includes(str(form.get("urgency"))) ? str(form.get("urgency")) : "normal") as keyof typeof URGENCY;
   if (!title) bad("Give the issue a short title");
-  const files = form.getAll("files").filter((f): f is File => f instanceof File && f.size > 0);
+  const files = await formUploads(form, "files", user.id);
   if (role === "tenant" && !description && !files.length) bad("Describe the problem or attach a photo, video or voice note");
   const info = await db().prepare("INSERT INTO issues (rental_id, type, category, urgency, room, title, description, reported_by, created_at) VALUES (?,?,?,?,?,?,?,?,?)")
     .run(rental.id, type, category, urgency, room, title, description, user.id, now());

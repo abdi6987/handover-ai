@@ -8,7 +8,55 @@ import { ACCEPT_MEDIA, ACCEPT_MEDIA_AUDIO } from "@/lib/formats";
 
 type Resp = { error?: string; redirect?: string; [k: string]: unknown };
 
-function send(url: string, method: string, body: FormData | object | undefined, onProgress?: (p: number) => void): Promise<Resp> {
+let directUploads: boolean | null = null; // learned from the first /api/uploads answer
+
+function put(url: string, file: File, contentType: string, onProgress: (loaded: number) => void): Promise<boolean> {
+  return new Promise((resolve) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("PUT", url);
+    xhr.setRequestHeader("Content-Type", contentType);
+    xhr.upload.onprogress = (e) => onProgress(e.loaded);
+    xhr.onload = () => resolve(xhr.status < 300);
+    xhr.onerror = () => resolve(false);
+    xhr.send(file);
+  });
+}
+
+/**
+ * In production, send each file straight to cloud storage first (no size limit, no load on the app server),
+ * then submit the form with a short reference in its place. Locally, files go with the form as usual.
+ */
+async function stageFiles(fd: FormData, onProgress?: (p: number) => void): Promise<FormData | { error: string }> {
+  const files = [...fd.entries()].filter((e): e is [string, File] => e[1] instanceof File && e[1].size > 0);
+  if (!files.length || directUploads === false) return fd;
+  const total = files.reduce((n, [, f]) => n + f.size, 0);
+  const done = new Map<File, number>();
+  const report = () => onProgress?.([...done.values()].reduce((a, b) => a + b, 0) / total);
+  const out = new FormData();
+  for (const [k, v] of fd.entries()) if (!(v instanceof File)) out.append(k, v);
+  for (const [k, f] of files) {
+    const r = await send("/api/uploads", "POST", { name: f.name, size: f.size, type: f.type });
+    if (r.error) return { error: r.error };
+    if (!r.direct) { directUploads = false; return fd; }
+    directUploads = true;
+    const ok = await put(String(r.url), f, String(r.contentType), (n) => { done.set(f, n); report(); });
+    if (!ok) return { error: `Upload of ${f.name} failed. Check your connection and try again.` };
+    done.set(f, f.size); report();
+    out.append(k, `staged:${String(r.token)}`);
+  }
+  return out;
+}
+
+async function send(url: string, method: string, body: FormData | object | undefined, onProgress?: (p: number) => void): Promise<Resp> {
+  if (body instanceof FormData) {
+    const staged = await stageFiles(body, onProgress);
+    if (!(staged instanceof FormData)) return staged;
+    if (staged !== body) return sendNow(url, method, staged);
+  }
+  return sendNow(url, method, body, onProgress);
+}
+
+function sendNow(url: string, method: string, body: FormData | object | undefined, onProgress?: (p: number) => void): Promise<Resp> {
   return new Promise((resolve) => {
     const xhr = new XMLHttpRequest();
     xhr.open(method, url);

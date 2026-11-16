@@ -1,7 +1,7 @@
 import { bad, handler, str } from "@/lib/api";
 import { audit } from "@/lib/audit";
 import { fullySigned, moveInLocked, rentalForUser } from "@/lib/rentals";
-import { saveUpload } from "@/lib/storage";
+import { formUploads, saveUpload } from "@/lib/storage";
 import { detectMime, isPhotoOrVideo } from "@/lib/formats";
 import type { Media } from "@/lib/types";
 
@@ -11,7 +11,7 @@ export const POST = handler(async (req, user, p) => {
   const context = str(form.get("context")) as Media["context"];
   const room = str(form.get("room"), 60) || null;
   const title = str(form.get("title"), 150) || null;
-  const files = form.getAll("files").filter((f): f is File => f instanceof File && f.size > 0);
+  const files = await formUploads(form, "files", user.id);
   if (!files.length) bad("Choose at least one file");
   if (context === "move_in") {
     if (moveInLocked(rental)) bad(rental.movein_status === "approved" ? "Move-in media is sealed and can't be changed" : "Move-in media is waiting for approval. The owner can ask for more pictures.");

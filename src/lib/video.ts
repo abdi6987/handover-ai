@@ -3,7 +3,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { promisify } from "node:util";
 import { CACHE_DIR } from "./db";
-import { mediaPath } from "./storage";
+import { mediaKey } from "./storage";
+import { blobs } from "./blobstore";
 import type { Media } from "./types";
 import { previewFile } from "./preview";
 
@@ -15,19 +16,29 @@ export type Frame = { mediaId: number; t: number | null; jpegPath: string };
 /** Normalise a photo to a <=1280px JPEG (keeps API requests small, handles PNG/WebP etc.). */
 async function photoFrame(m: Media): Promise<Frame> {
   const out = path.join(CACHE_DIR, `${m.sha256}.jpg`);
-  if (!fs.existsSync(out)) await run("ffmpeg", ["-y", "-loglevel", "error", "-i", previewFile(m) ?? mediaPath(m), "-vf", FIT, "-frames:v", "1", "-q:v", "4", out]);
+  if (!fs.existsSync(out)) {
+    const src = await blobs().localCopy(previewFile(m) ?? mediaKey(m));
+    try { await run("ffmpeg", ["-y", "-loglevel", "error", "-i", src.path, "-vf", FIT, "-frames:v", "1", "-q:v", "4", out]); } finally { src.done(); }
+  }
   return { mediaId: m.id, t: null, jpegPath: out };
 }
 
 /** Pull `count` evenly spaced frames from a video. */
 async function videoFrames(m: Media, count: number): Promise<Frame[]> {
-  const { stdout } = await run("ffprobe", ["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", mediaPath(m)]);
+  const src = await blobs().localCopy(mediaKey(m));
+  try {
+    return await videoFramesFrom(m, src.path, count);
+  } finally { src.done(); }
+}
+
+async function videoFramesFrom(m: Media, file: string, count: number): Promise<Frame[]> {
+  const { stdout } = await run("ffprobe", ["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", file]);
   const duration = Math.max(0.1, parseFloat(stdout) || 1);
   const frames: Frame[] = [];
   for (let k = 1; k <= count; k++) {
     const t = Math.round(((duration * k) / (count + 1)) * 10) / 10;
     const out = path.join(CACHE_DIR, `${m.sha256}-${t}.jpg`);
-    if (!fs.existsSync(out)) await run("ffmpeg", ["-y", "-loglevel", "error", "-ss", String(t), "-i", mediaPath(m), "-frames:v", "1", "-vf", FIT, "-q:v", "4", out]);
+    if (!fs.existsSync(out)) await run("ffmpeg", ["-y", "-loglevel", "error", "-ss", String(t), "-i", file, "-frames:v", "1", "-vf", FIT, "-q:v", "4", out]);
     if (fs.existsSync(out)) frames.push({ mediaId: m.id, t, jpegPath: out });
   }
   return frames;

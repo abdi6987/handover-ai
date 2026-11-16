@@ -1,7 +1,7 @@
 import { bad, handler, num, str } from "@/lib/api";
 import { audit } from "@/lib/audit";
 import { db, now } from "@/lib/db";
-import { saveUpload } from "@/lib/storage";
+import { formUploads, saveUpload } from "@/lib/storage";
 import { notifyUser } from "@/lib/notify";
 import { getStaff, issueAccess } from "@/lib/staff";
 import { ISSUE_STATUS, type Issue } from "@/lib/types";
@@ -11,7 +11,7 @@ export const POST = handler(async (req, user, p) => {
   const form = await req.formData();
   const action = str(form.get("action"));
   const body = str(form.get("body"), 5000) || null;
-  const files = form.getAll("files").filter((f): f is File => f instanceof File && f.size > 0);
+  const files = await formUploads(form, "files", user.id);
   let status: Issue["status"] | null = null;
   let subject = "";
 

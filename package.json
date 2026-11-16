@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "worker": "tsx src/worker.ts",
+    "build:worker": "esbuild src/worker.ts --bundle --platform=node --target=node22 --outfile=dist/worker.js --packages=external"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.8.0",
@@ -25,6 +27,7 @@
     "@types/pg": "^8.23.1",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "esbuild": "^0.25.12",
     "eslint": "^9",
     "eslint-config-next": "15.5.29",
     "tailwindcss": "^4",

@@ -2,8 +2,11 @@ import { NextResponse } from "next/server";
 import { findUserByEmail } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { sendPasswordReset } from "@/lib/verify";
+import { clientIp, hit, LIMITS, tooMany } from "@/lib/ratelimit";
 
 export async function POST(req: Request) {
+  const wait = await hit(`forgot:ip:${await clientIp()}`, LIMITS.forgotIp);
+  if (wait) return tooMany(wait);
   const b = await req.json();
   const u = await findUserByEmail(String(b.email ?? ""));
   if (u) {

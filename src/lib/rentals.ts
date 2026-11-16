@@ -1,6 +1,6 @@
 import { db, now } from "./db";
 import { canonical, sha256 } from "./hash";
-import { hashFileOnDisk } from "./storage";
+import { storedFileIntact } from "./storage";
 import type { Issue, Media, Rental, Role, User } from "./types";
 
 export class HttpError extends Error {
@@ -81,8 +81,8 @@ export async function verifyRental(r: Rental) {
     checks.push({ label: "No move-in files added or removed after approval", ok: sameSet });
     for (const f of manifest.files) {
       const m = await db().prepare("SELECT * FROM media WHERE id = ?").get(f.id) as Media | undefined;
-      const disk = m ? hashFileOnDisk(m) : null;
-      checks.push({ label: "File \"{name}\" ({room}) unchanged", vars: { name: f.name, room: f.room ?? "" }, ok: disk === f.sha256 && m?.sha256 === f.sha256, detail: f.sha256.slice(0, 16) });
+      const intact = m ? await storedFileIntact(m) : false;
+      checks.push({ label: "File \"{name}\" ({room}) unchanged", vars: { name: f.name, room: f.room ?? "" }, ok: intact && m?.sha256 === f.sha256, detail: f.sha256.slice(0, 16) });
     }
   } else {
     checks.push({ label: "Move-in media not yet approved", ok: false });

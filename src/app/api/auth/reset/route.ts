@@ -3,8 +3,11 @@ import { createSession, destroyAllSessions, hashPassword } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
 import { findReset, markVerified, consumeReset } from "@/lib/verify";
+import { clientIp, hit, LIMITS, tooMany } from "@/lib/ratelimit";
 
 export async function POST(req: Request) {
+  const wait = await hit(`reset:ip:${await clientIp()}`, LIMITS.resetIp);
+  if (wait) return tooMany(wait);
   const b = await req.json();
   const token = String(b.token ?? ""), password = String(b.password ?? "");
   const row = await findReset(token);

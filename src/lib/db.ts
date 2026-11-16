@@ -261,6 +261,20 @@ const MIGRATIONS: string[] = [
   );
   CREATE INDEX rate_limits_window ON rate_limits (window_start);
   `,
+  // 2: MD5 recorded at upload, compared with Cloud Storage's own checksum on the proof page.
+  `ALTER TABLE media ADD COLUMN md5 TEXT;`,
+  // 3: files the browser uploaded straight to Cloud Storage, waiting to be attached by a form submit.
+  `CREATE TABLE staged_uploads (
+    token TEXT PRIMARY KEY,
+    user_id BIGINT NOT NULL REFERENCES users(id),
+    key TEXT NOT NULL,
+    name TEXT NOT NULL,
+    mime TEXT NOT NULL,
+    size BIGINT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    used_at TIMESTAMPTZ
+  );
+  CREATE INDEX staged_uploads_created ON staged_uploads (created_at);`,
 ];
 
 type Params = unknown[];

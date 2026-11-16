@@ -1,9 +1,8 @@
-import { after } from "next/server";
 import { bad, handler } from "@/lib/api";
 import { audit } from "@/lib/audit";
 import { db, now } from "@/lib/db";
 import { fullySigned, mediaFor, rentalForUser } from "@/lib/rentals";
-import { runComparison } from "@/lib/ai";
+import { enqueue } from "@/lib/jobs";
 
 export const POST = handler(async (_req, user, p) => {
   const { rental } = await rentalForUser(Number(p.id), user);
@@ -14,6 +13,6 @@ export const POST = handler(async (_req, user, p) => {
   const info = await db().prepare("INSERT INTO comparisons (rental_id, created_by, created_at, status) VALUES (?,?,?, 'running')").run(rental.id, user.id, now());
   const id = Number(info.lastInsertRowid);
   await audit(rental.id, user.id, "comparison.started", { comparison_id: id });
-  after(() => runComparison(id, rental, user.id));
+  await enqueue("compare", { comparisonId: id, rentalId: rental.id, actorId: user.id });
   return { id };
 });

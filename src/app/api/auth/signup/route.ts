@@ -9,10 +9,13 @@ import { acceptStaff, staffByToken } from "@/lib/staff";
 import { joinPhone, PROPERTY_COUNTS } from "@/lib/countries";
 import { markVerified, sendEmailCode } from "@/lib/verify";
 import type { User } from "@/lib/types";
+import { clientIp, hit, LIMITS, tooMany } from "@/lib/ratelimit";
 
 const err = (error: string) => NextResponse.json({ error }, { status: 400 });
 
 export async function POST(req: Request) {
+  const wait = await hit(`signup:ip:${await clientIp()}`, LIMITS.signupIp);
+  if (wait) return tooMany(wait);
   const b = await req.json();
   const name = str(b.name, 100), email = str(b.email, 200).toLowerCase(), password = String(b.password ?? "");
   const phone = b.phoneCode ? joinPhone(str(b.phoneCode, 6), str(b.phone, 30)) : str(b.phone, 40) || null;
