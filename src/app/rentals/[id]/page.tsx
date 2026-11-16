@@ -15,14 +15,14 @@ export default async function Overview({ params }: { params: Promise<{ id: strin
   const base = `/rentals/${r.id}`;
   const other = role === "owner" ? "tenant" : "owner";
   const otherId = role === "owner" ? r.tenant_id : r.owner_id;
-  const moveIn = mediaFor(r.id, "move_in");
-  const issues = issuesFor(r.id);
+  const moveIn = await mediaFor(r.id, "move_in");
+  const issues = await issuesFor(r.id);
   const mySigned = !!r[`${role}_signed_at`];
-  const docs = mediaFor(r.id, "document").length;
-  const moveOut = mediaFor(r.id, "move_out").length;
-  const lastAi = db().prepare("SELECT c.created_at, (SELECT COUNT(*) FROM comparison_items i WHERE i.comparison_id = c.id AND i.classification = 'new_damage') dmg FROM comparisons c WHERE rental_id = ? AND status = 'done' ORDER BY id DESC LIMIT 1").get(r.id) as { created_at: string; dmg: number } | undefined;
-  const cost = role === "owner" ? (db().prepare("SELECT COALESCE(SUM(repair_cost),0) s FROM issues WHERE rental_id = ?").get(r.id) as { s: number }).s : 0;
-  const past = role === "owner" ? (db().prepare("SELECT * FROM rentals WHERE owner_id = ? AND id != ? AND lower(trim(address)) = lower(trim(?)) ORDER BY created_at DESC").all(r.owner_id, r.id, r.address) as Rental[]) : [];
+  const docs = (await mediaFor(r.id, "document")).length;
+  const moveOut = (await mediaFor(r.id, "move_out")).length;
+  const lastAi = await db().prepare("SELECT c.created_at, (SELECT COUNT(*) FROM comparison_items i WHERE i.comparison_id = c.id AND i.classification = 'new_damage') dmg FROM comparisons c WHERE rental_id = ? AND status = 'done' ORDER BY id DESC LIMIT 1").get(r.id) as { created_at: string; dmg: number } | undefined;
+  const cost = role === "owner" ? (await db().prepare("SELECT COALESCE(SUM(repair_cost),0) s FROM issues WHERE rental_id = ?").get(r.id) as { s: number }).s : 0;
+  const past = role === "owner" ? (await db().prepare("SELECT * FROM rentals WHERE owner_id = ? AND id != ? AND lower(trim(address)) = lower(trim(?)) ORDER BY created_at DESC").all(r.owner_id, r.id, r.address) as Rental[]) : [];
   const glance: [string, string, string][] = [
     [t("Move-in photos/videos"), `${moveIn.length}${r.movein_status === "approved" ? ` · ${t("sealed")}` : ""}`, "move-in"],
     [t("Lease"), t(fullySigned(r) ? "Signed by both" : r.owner_signed_at || r.tenant_signed_at ? "Partly signed" : "Not signed"), "lease"],

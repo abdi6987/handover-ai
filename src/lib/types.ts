@@ -16,7 +16,7 @@ export type Rental = {
 export type Media = {
   id: number; rental_id: number; context: "move_in" | "move_out" | "issue" | "document" | "bill";
   ref_id: number | null; room: string | null; title: string | null; kind: "photo" | "video" | "audio" | "file";
-  original_name: string; stored_name: string; mime: string; size: number; sha256: string;
+  original_name: string; stored_name: string; mime: string; size: number; sha256: string; md5?: string | null;
   uploaded_by: number; uploaded_at: string; deleted_at: string | null;
   preview_name: string | null; preview_mime: string | null; preview_status: "none" | "processing" | "ready" | "failed" | null;
 };

@@ -9,10 +9,10 @@ import { EmptyState } from "@/components/ui";
 export default async function InvitePage({ params }: { params: Promise<{ token: string }> }) {
   const t = await getT();
   const { token } = await params;
-  const inv = getInvite(token);
+  const inv = await getInvite(token);
   if (!inv) return <EmptyState title="This invite link isn't valid" href="/" cta="Go home" />;
-  const rental = getRental(inv.rental_id)!;
-  const inviter = getUser(inv.created_by);
+  const rental = (await getRental(inv.rental_id))!;
+  const inviter = await getUser(inv.created_by);
   const user = await currentUser();
   const slotTaken = inv.role === "owner" ? rental.owner_id : rental.tenant_id;
   const mine = user && roleOf(rental, user);

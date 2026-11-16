@@ -25,7 +25,7 @@ export default async function Signup({ searchParams }: { searchParams: Promise<{
       </div>
     );
   }
-  const inv = invite ? getInvite(invite) : null;
+  const inv = invite ? await getInvite(invite) : null;
   const role = inv?.role === "owner" ? "owner" : "tenant";
   return (
     <div className="mx-auto max-w-lg space-y-4 py-6">

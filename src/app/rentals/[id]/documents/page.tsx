@@ -8,7 +8,7 @@ export default async function Documents({ params }: { params: Promise<{ id: stri
   const t = await getT();
   const { id } = await params;
   const { user, rental: r, names } = await loadRental(id);
-  const docs = mediaFor(r.id, "document");
+  const docs = await mediaFor(r.id, "document");
   return (
     <div className="grid gap-4 lg:grid-cols-3">
       <div className="card space-y-3 lg:col-span-2">

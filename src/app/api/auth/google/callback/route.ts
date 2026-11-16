@@ -32,17 +32,17 @@ export async function GET(req: Request) {
   if (!info?.sub || !info.email || !info.email_verified) return fail("google_email");
 
   const email = info.email.toLowerCase();
-  let user = (db().prepare("SELECT * FROM users WHERE google_id = ?").get(info.sub) as User | undefined) ?? findUserByEmail(email);
+  let user = (await db().prepare("SELECT * FROM users WHERE google_id = ?").get(info.sub) as User | undefined) ?? await findUserByEmail(email);
   if (!user) {
-    const inv = saved.invite ? getInvite(saved.invite) : null;
+    const inv = saved.invite ? await getInvite(saved.invite) : null;
     const type = inv && !inv.accepted_at ? inv.role : saved.as;
-    const r = db().prepare("INSERT INTO users (email, name, account_type, password_hash, created_at, google_id, email_verified_at, terms_accepted_at) VALUES (?,?,?,?,?,?,?,?)")
-      .run(email, (info.name || email.split("@")[0]).slice(0, 100), type, hashPassword(crypto.randomBytes(32).toString("hex")), now(), info.sub, now(), now());
-    user = db().prepare("SELECT * FROM users WHERE id = ?").get(Number(r.lastInsertRowid)) as User;
-    audit(null, user.id, "user.signup", { email, type, via: "google" });
+    const r = await db().prepare("INSERT INTO users (email, name, account_type, password_hash, created_at, google_id, email_verified_at, terms_accepted_at) VALUES (?,?,?,?,?,?,?,?)")
+      .run(email, (info.name || email.split("@")[0]).slice(0, 100), type, await hashPassword(crypto.randomBytes(32).toString("hex")), now(), info.sub, now(), now());
+    user = await db().prepare("SELECT * FROM users WHERE id = ?").get(Number(r.lastInsertRowid)) as User;
+    await audit(null, user.id, "user.signup", { email, type, via: "google" });
   } else {
-    db().prepare("UPDATE users SET google_id = COALESCE(google_id, ?) WHERE id = ?").run(info.sub, user.id);
-    markVerified(user.id);
+    await db().prepare("UPDATE users SET google_id = COALESCE(google_id, ?) WHERE id = ?").run(info.sub, user.id);
+    await markVerified(user.id);
   }
   await createSession(user.id);
   let to = "/dashboard";

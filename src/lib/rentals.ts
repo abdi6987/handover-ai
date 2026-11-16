@@ -1,14 +1,14 @@
 import { db, now } from "./db";
 import { canonical, sha256 } from "./hash";
-import { hashFileOnDisk } from "./storage";
+import { storedFileIntact } from "./storage";
 import type { Issue, Media, Rental, Role, User } from "./types";
 
 export class HttpError extends Error {
   constructor(public status: number, message: string) { super(message); }
 }
 
-export function getRental(id: number): Rental | null {
-  return (db().prepare("SELECT * FROM rentals WHERE id = ?").get(id) as Rental) ?? null;
+export async function getRental(id: number): Promise<Rental | null> {
+  return (await db().prepare("SELECT * FROM rentals WHERE id = ?").get(id) as Rental) ?? null;
 }
 
 export function roleOf(r: Rental, user: Pick<User, "id">): Role | null {
@@ -17,8 +17,8 @@ export function roleOf(r: Rental, user: Pick<User, "id">): Role | null {
   return null;
 }
 
-export function rentalForUser(id: number, user: Pick<User, "id">): { rental: Rental; role: Role } {
-  const rental = getRental(id);
+export async function rentalForUser(id: number, user: Pick<User, "id">): Promise<{ rental: Rental; role: Role }> {
+  const rental = await getRental(id);
   if (!rental) throw new HttpError(404, "Rental not found");
   const role = roleOf(rental, user);
   if (!role) throw new HttpError(403, "You are not part of this rental");
@@ -29,16 +29,16 @@ export function otherPartyId(r: Rental, role: Role) {
   return role === "owner" ? r.tenant_id : r.owner_id;
 }
 
-export function listRentals(userId: number) {
-  return db()
+export async function listRentals(userId: number) {
+  return await db()
     .prepare("SELECT * FROM rentals WHERE owner_id = ? OR tenant_id = ? ORDER BY created_at DESC")
     .all(userId, userId) as Rental[];
 }
 
-export function mediaFor(rentalId: number, context: Media["context"], refId?: number) {
+export async function mediaFor(rentalId: number, context: Media["context"], refId?: number) {
   if (refId !== undefined)
-    return db().prepare("SELECT * FROM media WHERE rental_id = ? AND context = ? AND ref_id = ? AND deleted_at IS NULL ORDER BY id").all(rentalId, context, refId) as Media[];
-  return db().prepare("SELECT * FROM media WHERE rental_id = ? AND context = ? AND deleted_at IS NULL ORDER BY room, id").all(rentalId, context) as Media[];
+    return await db().prepare("SELECT * FROM media WHERE rental_id = ? AND context = ? AND ref_id = ? AND deleted_at IS NULL ORDER BY id").all(rentalId, context, refId) as Media[];
+  return await db().prepare("SELECT * FROM media WHERE rental_id = ? AND context = ? AND deleted_at IS NULL ORDER BY room, id").all(rentalId, context) as Media[];
 }
 
 export function moveInLocked(r: Rental) {
@@ -70,19 +70,19 @@ export function signatureHash(r: Rental, userId: number, name: string, at: strin
 }
 
 /** Full integrity check used by the proof page. */
-export function verifyRental(r: Rental) {
+export async function verifyRental(r: Rental) {
   const checks: { label: string; ok: boolean; detail?: string; vars?: Record<string, string> }[] = [];
   if (r.movein_seal && r.movein_manifest && r.movein_approved_at && r.movein_approved_by) {
     const manifest = JSON.parse(r.movein_manifest) as ReturnType<typeof buildManifest>;
     const sealOk = sealOf(manifest, r.movein_approved_at, r.movein_approved_by) === r.movein_seal;
     checks.push({ label: "Move-in seal matches the approved file list", ok: sealOk });
-    const current = mediaFor(r.id, "move_in");
+    const current = await mediaFor(r.id, "move_in");
     const sameSet = canonical(current.map((m) => m.id).sort()) === canonical(manifest.files.map((f) => f.id).sort());
     checks.push({ label: "No move-in files added or removed after approval", ok: sameSet });
     for (const f of manifest.files) {
-      const m = db().prepare("SELECT * FROM media WHERE id = ?").get(f.id) as Media | undefined;
-      const disk = m ? hashFileOnDisk(m) : null;
-      checks.push({ label: "File \"{name}\" ({room}) unchanged", vars: { name: f.name, room: f.room ?? "" }, ok: disk === f.sha256 && m?.sha256 === f.sha256, detail: f.sha256.slice(0, 16) });
+      const m = await db().prepare("SELECT * FROM media WHERE id = ?").get(f.id) as Media | undefined;
+      const intact = m ? await storedFileIntact(m) : false;
+      checks.push({ label: "File \"{name}\" ({room}) unchanged", vars: { name: f.name, room: f.room ?? "" }, ok: intact && m?.sha256 === f.sha256, detail: f.sha256.slice(0, 16) });
     }
   } else {
     checks.push({ label: "Move-in media not yet approved", ok: false });
@@ -95,8 +95,8 @@ export function verifyRental(r: Rental) {
   return checks;
 }
 
-export function issuesFor(rentalId: number) {
-  return db()
+export async function issuesFor(rentalId: number) {
+  return await db()
     .prepare(`SELECT i.*, u.name AS reporter_name FROM issues i JOIN users u ON u.id = i.reported_by WHERE i.rental_id = ? ORDER BY i.created_at DESC`)
     .all(rentalId) as (Issue & { reporter_name: string })[];
 }

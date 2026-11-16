@@ -1,6 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import fs from "node:fs";
-import { db } from "./db";
+import { db, tx } from "./db";
 import { audit } from "./audit";
 import { framesFor, type Frame } from "./video";
 import { issuesFor, mediaFor } from "./rentals";
@@ -63,7 +63,7 @@ function imageBlocks(label: string, frames: Frame[], media: Map<number, Media>):
 async function compareRoom(client: Anthropic, rental: Rental, room: string, before: Media[], after: Media[]) {
   const [bf, af] = await Promise.all([framesFor(before), framesFor(after)]);
   const byId = new Map([...before, ...after].map((m) => [m.id, m]));
-  const issues = issuesFor(rental.id).filter((i) => !i.room || i.room.toLowerCase() === room.toLowerCase());
+  const issues = (await issuesFor(rental.id)).filter((i) => !i.room || i.room.toLowerCase() === room.toLowerCase());
   const issueText = issues.length
     ? issues.map((i) => `#${i.id} [${ISSUE_TYPES[i.type]}${i.category ? `/${i.category}` : ""}, ${ISSUE_STATUS[i.status]}${i.done_at ? ` on ${i.done_at.slice(0, 10)}` : ""}] reported ${i.created_at.slice(0, 10)} by ${i.reporter_name}${i.room ? ` in ${i.room}` : ""}: ${i.title}. ${i.description}`).join("\n")
     : "None.";
@@ -105,8 +105,8 @@ export async function runComparison(comparisonId: number, rental: Rental, actorI
   const d = db();
   try {
     const sealedIds = new Set((JSON.parse(rental.movein_manifest || "{\"files\":[]}") as { files: { id: number }[] }).files.map((f) => f.id));
-    const before = mediaFor(rental.id, "move_in").filter((m) => sealedIds.has(m.id) && m.kind !== "file");
-    const after = mediaFor(rental.id, "move_out").filter((m) => m.kind !== "file");
+    const before = (await mediaFor(rental.id, "move_in")).filter((m) => sealedIds.has(m.id) && m.kind !== "file");
+    const after = (await mediaFor(rental.id, "move_out")).filter((m) => m.kind !== "file");
     const rooms = [...new Set(after.map((m) => m.room || "Other"))];
     const demo = !process.env.ANTHROPIC_API_KEY;
     if (demo && process.env.AI_DEMO !== "1") throw new Error("AI comparison isn't set up yet: add an ANTHROPIC_API_KEY to the server settings.");
@@ -125,20 +125,20 @@ export async function runComparison(comparisonId: number, rental: Rental, actorI
     const insert = d.prepare(`INSERT INTO comparison_items (comparison_id, room, title, description, severity, classification, confidence, before_media, after_media, related_issue_id) VALUES (?,?,?,?,?,?,?,?,?,?)`);
     let count = 0;
     const summary = results.map((r) => `${r.room}: ${r.result.room_summary}`).join("\n");
-    d.transaction(() => {
+    await tx(async () => {
       for (const r of results) for (const f of r.result.findings) {
-        insert.run(comparisonId, r.room, f.title, f.description, f.severity, f.classification, f.confidence, ref(r.frames.before, f.before_images), ref(r.frames.after, f.after_images), f.related_issue_id);
+        await insert.run(comparisonId, r.room, f.title, f.description, f.severity, f.classification, f.confidence, ref(r.frames.before, f.before_images), ref(r.frames.after, f.after_images), f.related_issue_id);
         count++;
       }
-      d.prepare("UPDATE comparisons SET status='done', summary=?, model=?, demo=? WHERE id=?").run(summary, demo ? "demo" : AI_MODEL, demo ? 1 : 0, comparisonId);
-    })();
-    audit(rental.id, actorId, "comparison.completed", { comparison_id: comparisonId, rooms, findings: count, model: demo ? "demo" : AI_MODEL });
+      await d.prepare("UPDATE comparisons SET status='done', summary=?, model=?, demo=? WHERE id=?").run(summary, demo ? "demo" : AI_MODEL, demo ? 1 : 0, comparisonId);
+    });
+    await audit(rental.id, actorId, "comparison.completed", { comparison_id: comparisonId, rooms, findings: count, model: demo ? "demo" : AI_MODEL });
     const path = `/rentals/${rental.id}/move-out`;
     for (const uid of [rental.owner_id, rental.tenant_id])
       await notifyUser(uid, `Move-out AI report ready: "${rental.name}"`, `The AI compared the move-out photos with the sealed move-in photos and flagged ${count} item${count === 1 ? "" : "s"}. Please review and agree or dispute each one.`, path);
   } catch (e) {
-    d.prepare("UPDATE comparisons SET status='failed', error=? WHERE id=?").run(e instanceof Error ? e.message : String(e), comparisonId);
-    audit(rental.id, actorId, "comparison.failed", { comparison_id: comparisonId, error: String(e).slice(0, 300) });
+    await d.prepare("UPDATE comparisons SET status='failed', error=? WHERE id=?").run(e instanceof Error ? e.message : String(e), comparisonId);
+    await audit(rental.id, actorId, "comparison.failed", { comparison_id: comparisonId, error: String(e).slice(0, 300) });
   }
 }
 

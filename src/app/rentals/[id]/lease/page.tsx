@@ -15,7 +15,7 @@ export default async function Lease({ params }: { params: Promise<{ id: string }
   const anySigned = !!(r.owner_signed_at || r.tenant_signed_at);
   const approved = r.movein_status === "approved";
   const mine = r[`${role}_signed_at`];
-  const leaseDocs = db().prepare("SELECT * FROM media WHERE rental_id = ? AND context = 'document' AND deleted_at IS NULL AND lower(title) LIKE '%lease%' ORDER BY id DESC").all(r.id) as Media[];
+  const leaseDocs = await db().prepare("SELECT * FROM media WHERE rental_id = ? AND context = 'document' AND deleted_at IS NULL AND lower(title) LIKE '%lease%' ORDER BY id DESC").all(r.id) as Media[];
   const other = role === "owner" ? "tenant" : "owner";
   return (
     <div className="grid gap-4 lg:grid-cols-2">
@@ -82,7 +82,7 @@ export default async function Lease({ params }: { params: Promise<{ id: string }
         ) : !r[`${other}_signed_at`] && (
           <div className="card flex flex-wrap items-center justify-between gap-3">
             <p className="text-sm">{t("You signed. Waiting for the")} {other}.</p>
-            <WhatsAppLink text={`I've signed the lease for "${r.name}" on Handover AI. Your turn: ${appUrl(`/rentals/${r.id}/lease`)}`} label={t("Remind on WhatsApp")} phone={getUser(role === "owner" ? r.tenant_id : r.owner_id)?.phone} />
+            <WhatsAppLink text={`I've signed the lease for "${r.name}" on Handover AI. Your turn: ${appUrl(`/rentals/${r.id}/lease`)}`} label={t("Remind on WhatsApp")} phone={(await getUser(role === "owner" ? r.tenant_id : r.owner_id))?.phone} />
           </div>
         )}
       </div>

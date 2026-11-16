@@ -10,12 +10,12 @@ export default async function Proof({ params }: { params: Promise<{ id: string }
   const t = await getT();
   const { id } = await params;
   const { rental: r, names } = await loadRental(id);
-  const checks = verifyRental(r);
-  const chain = verifyAuditChain();
+  const checks = await verifyRental(r);
+  const chain = await verifyAuditChain(r.id);
   const allOk = checks.every((c) => c.ok) && chain.ok;
   const manifest = r.movein_manifest ? (JSON.parse(r.movein_manifest) as { files: { id: number; room: string; name: string; sha256: string; uploaded_at: string; uploaded_by: number }[] }) : null;
-  const issues = issuesFor(r.id);
-  const audit = rentalAudit(r.id);
+  const issues = await issuesFor(r.id);
+  const audit = await rentalAudit(r.id);
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">

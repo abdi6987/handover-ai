@@ -15,7 +15,7 @@ export default async function Spending({ params }: { params: Promise<{ id: strin
   const { id } = await params;
   const { user, rental: r, role } = await loadRental(id);
   if (role !== "tenant") notFound(); // private to the tenant
-  const bills = db().prepare(`SELECT b.*, (SELECT m.id FROM media m WHERE m.context='bill' AND m.ref_id=b.id AND m.deleted_at IS NULL LIMIT 1) file_id
+  const bills = await db().prepare(`SELECT b.*, (SELECT m.id FROM media m WHERE m.context='bill' AND m.ref_id=b.id AND m.deleted_at IS NULL LIMIT 1) file_id
     FROM bills b WHERE b.rental_id = ? AND b.user_id = ? ORDER BY b.period DESC, b.id DESC`).all(r.id, user.id) as Bill[];
   const months = [...new Set(bills.map((b) => b.period))].sort().slice(-12);
   const total = (p: string, c?: string) => bills.filter((b) => b.period === p && (!c || b.category === c)).reduce((s, b) => s + b.amount, 0);

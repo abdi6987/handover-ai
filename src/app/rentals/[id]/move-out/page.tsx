@@ -26,12 +26,12 @@ export default async function MoveOut({ params }: { params: Promise<{ id: string
       <Link href={`/rentals/${r.id}/lease`} className="btn-secondary">{t("Go to lease")}</Link>
     </div>
   );
-  const after = mediaFor(r.id, "move_out");
-  const before = mediaFor(r.id, "move_in");
+  const after = await mediaFor(r.id, "move_out");
+  const before = await mediaFor(r.id, "move_in");
   const all = new Map<number, Media>([...before, ...after].map((m) => [m.id, m]));
-  const comps = db().prepare("SELECT * FROM comparisons WHERE rental_id = ? ORDER BY id DESC").all(r.id) as Comparison[];
+  const comps = await db().prepare("SELECT * FROM comparisons WHERE rental_id = ? ORDER BY id DESC").all(r.id) as Comparison[];
   const latest = comps[0];
-  const items = latest ? db().prepare("SELECT * FROM comparison_items WHERE comparison_id = ? ORDER BY CASE classification WHEN 'new_damage' THEN 0 ELSE 1 END, room").all(latest.id) as Item[] : [];
+  const items = latest ? await db().prepare("SELECT * FROM comparison_items WHERE comparison_id = ? ORDER BY CASE classification WHEN 'new_damage' THEN 0 ELSE 1 END, room").all(latest.id) as Item[] : [];
   const rooms = [...new Set([...before.map((m) => m.room || "Other"), ...ROOMS.map((x) => t(x))])];
   const refs = (json: string) => (JSON.parse(json || "[]") as { media_id: number; t: number | null }[]).filter((x) => all.has(x.media_id));
   return (

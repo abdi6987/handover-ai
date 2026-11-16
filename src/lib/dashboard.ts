@@ -4,14 +4,14 @@ import type { Issue, Rental, Role, User } from "./types";
 
 export type Todo = { href: string; title: string; text: string; tone: "amber" | "red" | "blue" | "green" };
 
-export function dashboardData(user: User, role: Role, t: (s: string, v?: Record<string, string | number>) => string = (s) => s) {
-  const rentals = listRentals(user.id).filter((r) => (role === "owner" ? r.owner_id : r.tenant_id) === user.id);
+export async function dashboardData(user: User, role: Role, t: (s: string, v?: Record<string, string | number>) => string = (s) => s) {
+  const rentals = (await listRentals(user.id)).filter((r) => (role === "owner" ? r.owner_id : r.tenant_id) === user.id);
   const ids = rentals.length ? rentals.map((r) => r.id) : [0];
   const q = ids.map(() => "?").join(",");
-  const issues = db().prepare(`SELECT i.*, u.name reporter_name, r.name rental_name FROM issues i JOIN users u ON u.id = i.reported_by JOIN rentals r ON r.id = i.rental_id WHERE i.rental_id IN (${q}) ORDER BY i.created_at DESC`).all(...ids) as (Issue & { reporter_name: string; rental_name: string })[];
-  const pendingItems = db().prepare(`SELECT c.rental_id, COUNT(*) n FROM comparison_items ci JOIN comparisons c ON c.id = ci.comparison_id
+  const issues = await db().prepare(`SELECT i.*, u.name reporter_name, r.name rental_name FROM issues i JOIN users u ON u.id = i.reported_by JOIN rentals r ON r.id = i.rental_id WHERE i.rental_id IN (${q}) ORDER BY i.created_at DESC`).all(...ids) as (Issue & { reporter_name: string; rental_name: string })[];
+  const pendingItems = await db().prepare(`SELECT c.rental_id, COUNT(*) n FROM comparison_items ci JOIN comparisons c ON c.id = ci.comparison_id
     WHERE c.rental_id IN (${q}) AND ci.${role}_response IS NULL AND c.id = (SELECT MAX(id) FROM comparisons WHERE rental_id = c.rental_id AND status='done') GROUP BY c.rental_id`).all(...ids) as { rental_id: number; n: number }[];
-  const names = new Map((db().prepare(`SELECT id, name FROM users WHERE id IN (SELECT owner_id FROM rentals WHERE id IN (${q}) UNION SELECT tenant_id FROM rentals WHERE id IN (${q}))`).all(...ids, ...ids) as { id: number; name: string }[]).map((u) => [u.id, u.name]));
+  const names = new Map((await db().prepare(`SELECT id, name FROM users WHERE id IN (SELECT owner_id FROM rentals WHERE id IN (${q}) UNION SELECT tenant_id FROM rentals WHERE id IN (${q}))`).all(...ids, ...ids) as { id: number; name: string }[]).map((u) => [u.id, u.name]));
 
   const todos: Todo[] = [];
   for (const r of rentals) {

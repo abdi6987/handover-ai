@@ -9,10 +9,10 @@ import { Badge, fmtMoney } from "@/components/ui";
 export default async function LandlordDashboard() {
   const t = await getT();
   const user = await requireUser();
-  const { rentals, todos, openIssues, names } = dashboardData(user, "owner", t);
+  const { rentals, todos, openIssues, names } = await dashboardData(user, "owner", t);
   const active = rentals.filter((r) => rentalStage(r).active);
   const income = active.reduce((s, r) => s + (r.rent ?? 0), 0);
-  const { rows: log } = landlordLog(user.id);
+  const { rows: log } = await landlordLog(user.id);
   const year = new Date().getFullYear().toString();
   const yearCost = (id: number) => log.filter((l) => l.rental_id === id && l.created_at.startsWith(year)).reduce((s, l) => s + (l.repair_cost ?? 0), 0);
   return (

@@ -6,7 +6,7 @@ import { findReset } from "@/lib/verify";
 export default async function Reset({ params }: { params: Promise<{ token: string }> }) {
   const t = await getT();
   const { token } = await params;
-  const ok = !!findReset(token);
+  const ok = !!await findReset(token);
   return (
     <div className="mx-auto max-w-sm space-y-4 py-6">
       <h1 className="h1">{t("Choose a new password")}</h1>

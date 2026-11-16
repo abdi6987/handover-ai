@@ -1,17 +1,17 @@
 import { bad, handler, str } from "@/lib/api";
 import { audit } from "@/lib/audit";
 import { fullySigned, moveInLocked, rentalForUser } from "@/lib/rentals";
-import { saveUpload } from "@/lib/storage";
+import { formUploads, saveUpload } from "@/lib/storage";
 import { detectMime, isPhotoOrVideo } from "@/lib/formats";
 import type { Media } from "@/lib/types";
 
 export const POST = handler(async (req, user, p) => {
-  const { rental } = rentalForUser(Number(p.id), user);
+  const { rental } = await rentalForUser(Number(p.id), user);
   const form = await req.formData();
   const context = str(form.get("context")) as Media["context"];
   const room = str(form.get("room"), 60) || null;
   const title = str(form.get("title"), 150) || null;
-  const files = form.getAll("files").filter((f): f is File => f instanceof File && f.size > 0);
+  const files = await formUploads(form, "files", user.id);
   if (!files.length) bad("Choose at least one file");
   if (context === "move_in") {
     if (moveInLocked(rental)) bad(rental.movein_status === "approved" ? "Move-in media is sealed and can't be changed" : "Move-in media is waiting for approval. The owner can ask for more pictures.");
@@ -29,7 +29,7 @@ export const POST = handler(async (req, user, p) => {
   const saved = [];
   for (const f of files) {
     const m = await saveUpload(f, { rentalId: rental.id, context, room, title: title ?? f.name, userId: user.id });
-    audit(rental.id, user.id, `media.uploaded`, { media_id: m.id, context, room, name: m.original_name, sha256: m.sha256, size: m.size });
+    await audit(rental.id, user.id, `media.uploaded`, { media_id: m.id, context, room, name: m.original_name, sha256: m.sha256, size: m.size });
     saved.push(m.id);
   }
   return { ids: saved };
