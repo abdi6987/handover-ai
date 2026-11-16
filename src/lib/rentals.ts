@@ -71,7 +71,7 @@ export function signatureHash(r: Rental, userId: number, name: string, at: strin
 
 /** Full integrity check used by the proof page. */
 export function verifyRental(r: Rental) {
-  const checks: { label: string; ok: boolean; detail?: string }[] = [];
+  const checks: { label: string; ok: boolean; detail?: string; vars?: Record<string, string> }[] = [];
   if (r.movein_seal && r.movein_manifest && r.movein_approved_at && r.movein_approved_by) {
     const manifest = JSON.parse(r.movein_manifest) as ReturnType<typeof buildManifest>;
     const sealOk = sealOf(manifest, r.movein_approved_at, r.movein_approved_by) === r.movein_seal;
@@ -82,7 +82,7 @@ export function verifyRental(r: Rental) {
     for (const f of manifest.files) {
       const m = db().prepare("SELECT * FROM media WHERE id = ?").get(f.id) as Media | undefined;
       const disk = m ? hashFileOnDisk(m) : null;
-      checks.push({ label: `File "${f.name}" (${f.room}) unchanged`, ok: disk === f.sha256 && m?.sha256 === f.sha256, detail: f.sha256.slice(0, 16) });
+      checks.push({ label: "File \"{name}\" ({room}) unchanged", vars: { name: f.name, room: f.room ?? "" }, ok: disk === f.sha256 && m?.sha256 === f.sha256, detail: f.sha256.slice(0, 16) });
     }
   } else {
     checks.push({ label: "Move-in media not yet approved", ok: false });
@@ -90,7 +90,7 @@ export function verifyRental(r: Rental) {
   for (const side of ["owner", "tenant"] as const) {
     const at = r[`${side}_signed_at`], nm = r[`${side}_sign_name`], h = r[`${side}_sign_hash`];
     const uid = side === "owner" ? r.owner_id : r.tenant_id;
-    if (at && nm && h && uid) checks.push({ label: `${side === "owner" ? "Owner" : "Tenant"} signature valid for these lease terms and seal`, ok: signatureHash(r, uid, nm, at) === h });
+    if (at && nm && h && uid) checks.push({ label: side === "owner" ? "Owner signature valid for these lease terms and seal" : "Tenant signature valid for these lease terms and seal", ok: signatureHash(r, uid, nm, at) === h });
   }
   return checks;
 }

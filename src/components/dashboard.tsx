@@ -1,14 +1,16 @@
 import Link from "next/link";
+import { getT } from "@/lib/i18n";
 import { ActionButton, AddRentalBox } from "./client";
 import { Badge, fmt } from "./ui";
 import type { Todo } from "@/lib/dashboard";
 import { ISSUE_STATUS, ISSUE_TYPES, type Issue } from "@/lib/types";
 
-export function Todos({ todos }: { todos: Todo[] }) {
+export async function Todos({ todos }: { todos: Todo[] }) {
+  const t = await getT();
   return (
     <div className="card space-y-2">
-      <h2 className="h2">Needs your attention</h2>
-      {todos.length === 0 ? <p className="muted">You&apos;re all caught up. 🎉</p> : (
+      <h2 className="h2">{t("Needs your attention")}</h2>
+      {todos.length === 0 ? <p className="muted">{t("You're all caught up. 🎉")}</p> : (
         <ul className="divide-y divide-gray-100">
           {todos.map((t, i) => (
             <li key={i}>
@@ -27,17 +29,18 @@ export function Todos({ todos }: { todos: Todo[] }) {
   );
 }
 
-export function IssueList({ issues, title }: { issues: (Issue & { reporter_name: string; rental_name: string })[]; title: string }) {
+export async function IssueList({ issues, title }: { issues: (Issue & { reporter_name: string; rental_name: string })[]; title: string }) {
+  const t = await getT();
   return (
     <div className="card space-y-2">
       <h2 className="h2">{title}</h2>
-      {issues.length === 0 ? <p className="muted">No open issues.</p> : (
+      {issues.length === 0 ? <p className="muted">{t("No open issues.")}</p> : (
         <ul className="divide-y divide-gray-100">
           {issues.slice(0, 8).map((i) => (
             <li key={i.id}>
               <Link href={`/rentals/${i.rental_id}/issues/${i.id}`} className="flex items-center justify-between gap-2 py-2 text-sm">
-                <span><span className="font-medium">{i.title}</span><span className="block text-xs text-gray-500">{ISSUE_TYPES[i.type]} · {i.rental_name} · {fmt(i.created_at, false)}</span></span>
-                <Badge tone={i.status === "reported" ? "amber" : i.status === "disputed" ? "red" : "blue"}>{ISSUE_STATUS[i.status]}</Badge>
+                <span><span className="font-medium">{i.title}</span><span className="block text-xs text-gray-500">{t(ISSUE_TYPES[i.type])} · {i.rental_name} · {fmt(i.created_at, false)}</span></span>
+                <Badge tone={i.status === "reported" ? "amber" : i.status === "disputed" ? "red" : "blue"}>{t(ISSUE_STATUS[i.status])}</Badge>
               </Link>
             </li>
           ))}
@@ -47,14 +50,15 @@ export function IssueList({ issues, title }: { issues: (Issue & { reporter_name:
   );
 }
 
-export function Stat({ label, value, tone }: { label: string; value: React.ReactNode; tone?: string }) {
-  return <div className="card !p-3"><p className="muted">{label}</p><p className={`text-2xl font-bold ${tone ?? ""}`}>{value}</p></div>;
+export async function Stat({ label, value, tone }: { label: string; value: React.ReactNode; tone?: string }) {
+  const t = await getT();
+  return <div className="card !p-3"><p className="muted">{t(label)}</p><p className={`text-2xl font-bold ${tone ?? ""}`}>{value}</p></div>;
 }
 
-export function AddRental({ role, open }: { role: "owner" | "tenant"; open: boolean }) {
+export async function AddRental({ role, open }: { role: "owner" | "tenant"; open: boolean }) {
   return <AddRentalBox title={role === "owner" ? "Add a property" : "Add your rental"} defaultOpen={open} role={role} />;
 }
 
-export function SwitchView({ to }: { to: "owner" | "tenant" }) {
+export async function SwitchView({ to }: { to: "owner" | "tenant" }) {
   return <ActionButton url="/api/account" body={{ accountType: to }} label={to === "owner" ? "Switch to landlord dashboard" : "Switch to tenant dashboard"} className="text-sm font-semibold text-brand-700" />;
 }

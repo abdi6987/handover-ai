@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { getT } from "@/lib/i18n";
 import { requireUser } from "@/lib/auth";
 import { daysBetween, landlordLog } from "@/lib/maintenance";
 import { staffOf } from "@/lib/staff";
@@ -9,6 +10,7 @@ type SP = { property?: string; status?: string; type?: string; from?: string; st
 const tone = (s: string) => (s === "done" ? "green" : s === "disputed" ? "red" : s === "reported" ? "amber" : "blue") as "green" | "red" | "amber" | "blue";
 
 export default async function MaintenanceLog({ searchParams }: { searchParams: Promise<SP> }) {
+  const t = await getT();
   const user = await requireUser();
   const sp = await searchParams;
   const { rentals, rows } = landlordLog(user.id);
@@ -27,7 +29,7 @@ export default async function MaintenanceLog({ searchParams }: { searchParams: P
     return `?${p.toString()}`;
   };
   const chip = (label: string, patch: Partial<SP>, active: boolean) => (
-    <Link key={label} href={q(patch)} className={`badge px-3 py-1 ${active ? "bg-gray-900 text-white" : "bg-white ring-1 ring-gray-200"}`}>{label}</Link>
+    <Link key={label} href={q(patch)} className={`badge px-3 py-1 ${active ? "bg-gray-900 text-white" : "bg-white ring-1 ring-gray-200"}`}>{t(label)}</Link>
   );
   const sum = (list: typeof rows) => list.reduce((s, r) => s + (r.repair_cost ?? 0), 0);
   const avgFix = (() => { const d = rows.filter((r) => r.done_at); return d.length ? Math.round(d.reduce((s, r) => s + daysBetween(r.created_at, r.done_at), 0) / d.length) : null; })();
@@ -36,27 +38,27 @@ export default async function MaintenanceLog({ searchParams }: { searchParams: P
     <div className="space-y-5">
       <div className="flex flex-wrap items-end justify-between gap-2">
         <div>
-          <Link href="/dashboard/landlord" className="text-sm font-semibold text-brand-700">← Landlord dashboard</Link>
-          <h1 className="h1">Maintenance and complaints</h1>
-          <p className="muted">Every repair, upkeep job and tenant complaint across all your properties.</p>
+          <Link href="/dashboard/landlord" className="text-sm font-semibold text-brand-700">{t("← Landlord dashboard")}</Link>
+          <h1 className="h1">{t("Maintenance and complaints")}</h1>
+          <p className="muted">{t("Every repair, upkeep job and tenant complaint across all your properties.")}</p>
         </div>
         <div className="flex gap-2">
-          <Link href="/dashboard/landlord/staff" className="btn-secondary">🧰 Staff</Link>
-          <a href="/api/landlord/maintenance" className="btn-secondary">Download CSV</a>
+          <Link href="/dashboard/landlord/staff" className="btn-secondary">{t("🧰 Staff")}</Link>
+          <a href="/api/landlord/maintenance" className="btn-secondary">{t("Download CSV")}</a>
         </div>
       </div>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <div className="card !p-3"><p className="muted">Open items</p><p className="text-2xl font-bold text-amber-700">{rows.filter((r) => r.status !== "done").length}</p></div>
-        <div className="card !p-3"><p className="muted">Open tenant complaints</p><p className="text-2xl font-bold text-red-700">{rows.filter((r) => r.status !== "done" && r.reporter_role === "tenant").length}</p></div>
-        <div className="card !p-3"><p className="muted">Avg. days to fix</p><p className="text-2xl font-bold">{avgFix ?? "—"}</p></div>
-        <div className="card !p-3"><p className="muted">Upkeep and repair cost {year}</p><p className="text-lg font-bold">{fmtMoney(sum(rows.filter((r) => r.created_at.startsWith(year))), cur)}</p></div>
+        <div className="card !p-3"><p className="muted">{t("Open items")}</p><p className="text-2xl font-bold text-amber-700">{rows.filter((r) => r.status !== "done").length}</p></div>
+        <div className="card !p-3"><p className="muted">{t("Open tenant complaints")}</p><p className="text-2xl font-bold text-red-700">{rows.filter((r) => r.status !== "done" && r.reporter_role === "tenant").length}</p></div>
+        <div className="card !p-3"><p className="muted">{t("Avg. days to fix")}</p><p className="text-2xl font-bold">{avgFix ?? "—"}</p></div>
+        <div className="card !p-3"><p className="muted">{t("Upkeep and repair cost")} {year}</p><p className="text-lg font-bold">{fmtMoney(sum(rows.filter((r) => r.created_at.startsWith(year))), cur)}</p></div>
       </div>
 
       <div className="card overflow-x-auto">
-        <h2 className="h2 mb-2">By property</h2>
-        <table className="w-full min-w-[560px] text-left text-sm">
-          <thead className="text-xs text-gray-500"><tr><th className="py-1">Property</th><th>Open</th><th>Tenant complaints (open)</th><th>Done</th><th>Cost {year}</th><th>Last activity</th></tr></thead>
+        <h2 className="h2 mb-2">{t("By property")}</h2>
+        <table className="w-full min-w-[560px] text-start text-sm">
+          <thead className="text-xs text-gray-500"><tr><th className="py-1">{t("Property")}</th><th>{t("Open")}</th><th>{t("Tenant complaints (open)")}</th><th>{t("Done")}</th><th>{t("Cost")} {year}</th><th>{t("Last activity")}</th></tr></thead>
           <tbody>
             {rentals.map((p) => {
               const mine = rows.filter((r) => r.rental_id === p.id);
@@ -99,30 +101,30 @@ export default async function MaintenanceLog({ searchParams }: { searchParams: P
         </div>
         <div className="flex flex-wrap gap-1.5">
           {chip("All categories", { cat: undefined }, !sp.cat)}
-          {Object.entries(ISSUE_CATEGORIES).filter(([k]) => rows.some((r) => r.category === k)).map(([k, c]) => chip(`${c.icon} ${c.label}`, { cat: k }, sp.cat === k))}
+          {Object.entries(ISSUE_CATEGORIES).filter(([k]) => rows.some((r) => r.category === k)).map(([k, c]) => chip(`${c.icon} ${t(c.label)}`, { cat: k }, sp.cat === k))}
         </div>
       </div>
 
       <div className="space-y-2">
-        {shown.length === 0 && <p className="muted">Nothing matches these filters.</p>}
+        {shown.length === 0 && <p className="muted">{t("Nothing matches these filters.")}</p>}
         {shown.map((r) => (
           <Link key={r.id} href={`/rentals/${r.rental_id}/issues/${r.id}`} className="card block !p-4 transition hover:border-brand-600">
             <div className="flex flex-wrap items-start justify-between gap-2">
               <div>
                 <p className="font-semibold">{r.category ? `${ISSUE_CATEGORIES[r.category]?.icon} ` : ""}{r.title}</p>
-                <p className="muted">{r.rental_name} · {ISSUE_TYPES[r.type]}{r.room ? ` · ${r.room}` : ""}</p>
+                <p className="muted">{r.rental_name} · {t(ISSUE_TYPES[r.type])}{r.room ? ` · ${t(r.room)}` : ""}</p>
               </div>
               <div className="flex items-center gap-1.5">
-                {r.urgency === "urgent" && r.status !== "done" && <span className="badge bg-red-600 text-white">Urgent</span>}
-                {r.reporter_role === "tenant" && <Badge tone="red">Tenant complaint</Badge>}
-                <Badge tone={tone(r.status)}>{ISSUE_STATUS[r.status]}</Badge>
+                {r.urgency === "urgent" && r.status !== "done" && <span className="badge bg-red-600 text-white">{t("Urgent")}</span>}
+                {r.reporter_role === "tenant" && <Badge tone="red">{t("Tenant complaint")}</Badge>}
+                <Badge tone={tone(r.status)}>{t(ISSUE_STATUS[r.status])}</Badge>
               </div>
             </div>
             <p className="mt-2 flex flex-wrap gap-x-4 text-xs text-gray-500">
-              <span>Reported {fmt(r.created_at)} by {r.reporter_name}</span>
-              {r.done_at ? <span>Done {fmt(r.done_at, false)} ({daysBetween(r.created_at, r.done_at)} days)</span> : <span>Open {daysBetween(r.created_at)} days</span>}
-              <span>{r.updates} update{r.updates === 1 ? "" : "s"}</span>
-              <span>{r.assignee_name ? `🧰 ${r.assignee_name}` : r.status !== "done" ? "Unassigned" : ""}</span>
+              <span>{t("Reported {date} by {name}", { date: fmt(r.created_at), name: r.reporter_name })}</span>
+              {r.done_at ? <span>{t("Done {date} ({n} days)", { date: fmt(r.done_at, false), n: daysBetween(r.created_at, r.done_at) })}</span> : <span>{t("Open {n} days", { n: daysBetween(r.created_at) })}</span>}
+              <span>{t("{n} updates", { n: r.updates })}</span>
+              <span>{r.assignee_name ? `🧰 ${r.assignee_name}` : r.status !== "done" ? t("Unassigned") : ""}</span>
               {r.repair_cost !== null && <span className="font-medium text-gray-700">{fmtMoney(r.repair_cost, cur)}{r.cost_note ? ` · ${r.cost_note}` : ""}</span>}
             </p>
           </Link>

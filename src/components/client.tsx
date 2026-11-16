@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { createContext, useContext, useEffect, useRef, useState } from "react";
+import { LANGS, makeT, type Dict, type Lang, type TFn } from "@/lib/i18n/langs";
 import { ACCEPT_MEDIA, ACCEPT_MEDIA_AUDIO } from "@/lib/formats";
 
 type Resp = { error?: string; redirect?: string; [k: string]: unknown };
@@ -31,6 +32,7 @@ export function Form({
   url: string; method?: string; multipart?: boolean; submitLabel: string; className?: string; children: React.ReactNode;
   onDone?: (r: Resp) => void; resetOnSuccess?: boolean; buttonClass?: string; extra?: Record<string, string>;
 }) {
+  const t = useT();
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -61,7 +63,7 @@ export function Form({
       {children}
       {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
       <button className={buttonClass} disabled={busy}>
-        {busy ? (progress !== null && progress < 1 ? `Uploading ${Math.round(progress * 100)}%` : "Working...") : submitLabel}
+        {busy ? (progress !== null && progress < 1 ? t("Uploading {p}%", { p: Math.round(progress * 100) }) : t("Working...")) : submitLabel}
       </button>
     </form>
   );
@@ -70,6 +72,7 @@ export function Form({
 export function ActionButton({ url, method = "POST", body, label, className = "btn-secondary", confirmText }: {
   url: string; method?: string; body?: object; label: string; className?: string; confirmText?: string;
 }) {
+  const t = useT();
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -83,29 +86,31 @@ export function ActionButton({ url, method = "POST", body, label, className = "b
         if (r.error) return setError(r.error);
         if (r.redirect) router.push(r.redirect);
         router.refresh();
-      }}>{busy ? "Working..." : label}</button>
+      }}>{busy ? t("Working...") : t(label)}</button>
       {error && <span className="text-xs text-red-700">{error}</span>}
     </span>
   );
 }
 
 export function LogoutButton() {
+  const t = useT();
   const router = useRouter();
   return (
     <button className="rounded-lg px-2.5 py-1.5 hover:bg-gray-100" onClick={async () => {
       await send("/api/auth/logout", "POST", {});
       router.push("/"); router.refresh();
-    }}>Log out</button>
+    }}>{t("Log out")}</button>
   );
 }
 
 export function RolePicker({ name, value, onChange }: { name: string; value: "tenant" | "owner"; onChange: (v: "tenant" | "owner") => void }) {
+  const t = useT();
   return (
     <div className="grid grid-cols-2 gap-2">
       {(["tenant", "owner"] as const).map((r) => (
         <label key={r} className={`cursor-pointer rounded-xl border px-3 py-2.5 text-center text-sm font-semibold ${value === r ? "border-brand-600 bg-brand-50 text-brand-800" : "border-gray-300"}`}>
           <input type="radio" name={name} value={r} checked={value === r} onChange={() => onChange(r)} className="sr-only" />
-          {r === "owner" ? "🏢 Landlord" : "🏠 Tenant"}
+          {r === "owner" ? `🏢 ${t("Landlord")}` : `🏠 ${t("Tenant")}`}
         </label>
       ))}
     </div>
@@ -113,42 +118,45 @@ export function RolePicker({ name, value, onChange }: { name: string; value: "te
 }
 
 export function AuthForm({ mode, invite, email, as = "tenant", staff }: { mode: "login" | "signup"; invite?: string; email?: string; as?: "tenant" | "owner"; staff?: string }) {
+  const t = useT();
   const router = useRouter();
   const [role, setRole] = useState<"tenant" | "owner">(as);
   return (
-    <Form url={`/api/auth/${mode}`} submitLabel={mode === "login" ? "Log in" : staff ? "Create staff account" : `Create ${role === "owner" ? "landlord" : "tenant"} account`} buttonClass="btn-primary w-full"
+    <Form url={`/api/auth/${mode}`} submitLabel={t(mode === "login" ? "Log in" : staff ? "Create staff account" : role === "owner" ? "Create landlord account" : "Create tenant account")} buttonClass="btn-primary w-full"
       extra={invite ? { invite } : staff ? { staff } : undefined} resetOnSuccess={false}
       onDone={(r) => { router.push(r.redirect || "/dashboard"); router.refresh(); }}>
       {mode === "signup" && (
         <>
-          {!invite && !staff && <div><span className="label">I am a</span><RolePicker name="accountType" value={role} onChange={setRole} /></div>}
-          <div><label className="label">Full name</label><input name="name" required className="input" autoComplete="name" /></div>
-          <div><label className="label">Phone (optional, for WhatsApp)</label><input name="phone" className="input" type="tel" autoComplete="tel" /></div>
+          {!invite && !staff && <div><span className="label">{t("I am a")}</span><RolePicker name="accountType" value={role} onChange={setRole} /></div>}
+          <div><label className="label">{t("Full name")}</label><input name="name" required className="input" autoComplete="name" /></div>
+          <div><label className="label">{t("Phone (optional, for WhatsApp)")}</label><input name="phone" className="input" type="tel" autoComplete="tel" /></div>
         </>
       )}
-      <div><label className="label">Email</label><input name="email" type="email" required className="input" defaultValue={email} autoComplete="email" /></div>
-      <div><label className="label">Password</label><input name="password" type="password" required minLength={mode === "signup" ? 8 : 1} className="input" autoComplete={mode === "login" ? "current-password" : "new-password"} /></div>
+      <div><label className="label">{t("Email")}</label><input name="email" type="email" required className="input" defaultValue={email} autoComplete="email" /></div>
+      <div><label className="label">{t("Password")}</label><input name="password" type="password" required minLength={mode === "signup" ? 8 : 1} className="input" autoComplete={mode === "login" ? "current-password" : "new-password"} /></div>
     </Form>
   );
 }
 
 export function CopyButton({ text, label = "Copy link" }: { text: string; label?: string }) {
+  const t = useT();
   const [done, setDone] = useState(false);
   return (
     <button type="button" className="btn-secondary" onClick={async () => {
       try { await navigator.clipboard.writeText(text); } catch { window.prompt("Copy this link", text); }
       setDone(true); setTimeout(() => setDone(false), 1500);
-    }}>{done ? "Copied" : label}</button>
+    }}>{done ? t("Copied") : t(label)}</button>
   );
 }
 
 export function InviteResult({ link, whatsapp, emailed }: { link: string; whatsapp: string; emailed?: boolean }) {
+  const t = useT();
   return (
     <div className="space-y-3 rounded-xl bg-brand-50 p-4">
       <p className="text-sm font-medium text-brand-800">{emailed ? "Invite emailed. You can also send it on WhatsApp:" : "Send this invite link:"}</p>
       <p className="mono rounded-lg bg-white p-2">{link}</p>
       <div className="flex flex-wrap gap-2">
-        <a href={whatsapp} target="_blank" rel="noreferrer" className="btn-whatsapp">Send on WhatsApp</a>
+        <a href={whatsapp} target="_blank" rel="noreferrer" className="btn-whatsapp">{t("Send on WhatsApp")}</a>
         <CopyButton text={link} />
       </div>
     </div>
@@ -156,13 +164,14 @@ export function InviteResult({ link, whatsapp, emailed }: { link: string; whatsa
 }
 
 export function InviteBox({ rentalId, other }: { rentalId: number; other: string }) {
+  const t = useT();
   const [res, setRes] = useState<{ link: string; whatsapp: string; emailed: boolean } | null>(null);
   return (
     <div className="space-y-3">
-      <Form url={`/api/rentals/${rentalId}/invite`} submitLabel={`Invite the ${other}`} onDone={(r) => setRes({ link: r.link as string, whatsapp: r.whatsapp as string, emailed: !!(r as { emailed?: boolean }).emailed })}>
+      <Form url={`/api/rentals/${rentalId}/invite`} submitLabel={t(other === "owner" ? "Invite the landlord" : "Invite the tenant")} onDone={(r) => setRes({ link: r.link as string, whatsapp: r.whatsapp as string, emailed: !!(r as { emailed?: boolean }).emailed })}>
         <div>
-          <label className="label">{other === "owner" ? "Owner" : "Tenant"} email (optional, leave empty to only get a link)</label>
-          <input name="email" type="email" className="input" placeholder="name@example.com" onChange={() => setRes(null)} />
+          <label className="label">{t(other === "owner" ? "Landlord email (optional, leave empty to only get a link)" : "Tenant email (optional, leave empty to only get a link)")}</label>
+          <input name="email" type="email" className="input" placeholder={t("name@example.com")} onChange={() => setRes(null)} />
         </div>
       </Form>
       {res && <InviteResult {...res} />}
@@ -171,43 +180,45 @@ export function InviteBox({ rentalId, other }: { rentalId: number; other: string
 }
 
 export function NewRentalForm({ defaultRole = "owner" }: { defaultRole?: "owner" | "tenant" }) {
+  const t = useT();
   const router = useRouter();
   const [created, setCreated] = useState<{ id: number; link: string; whatsapp: string; emailed: boolean } | null>(null);
   const [role, setRole] = useState<"owner" | "tenant">(defaultRole);
   if (created) return (
     <div className="space-y-4">
-      <p className="font-semibold">Rental created.</p>
+      <p className="font-semibold">{t("Rental created.")}</p>
       <InviteResult link={created.link} whatsapp={created.whatsapp} emailed={created.emailed} />
-      <button className="btn-primary" onClick={() => router.push(`/rentals/${created.id}`)}>Open the rental</button>
+      <button className="btn-primary" onClick={() => router.push(`/rentals/${created.id}`)}>{t("Open the rental")}</button>
     </div>
   );
   const other = role === "owner" ? "tenant" : "owner";
   return (
-    <Form url="/api/rentals" submitLabel="Create rental" resetOnSuccess={false}
+    <Form url="/api/rentals" submitLabel={t("Create rental")} resetOnSuccess={false}
       onDone={(r) => { const inv = r.invite as { link: string; whatsapp: string; emailed: boolean }; setCreated({ id: r.id as number, ...inv }); }}>
       <div>
-        <span className="label">I am the</span>
+        <span className="label">{t("I am the")}</span>
         <RolePicker name="myRole" value={role} onChange={setRole} />
       </div>
-      <div><label className="label">Name</label><input name="name" required className="input" placeholder="e.g. Pearl Tower apt 1204" /></div>
-      <div><label className="label">Address</label><input name="address" required className="input" /></div>
+      <div><label className="label">{t("Name")}</label><input name="name" required className="input" placeholder={t("e.g. Pearl Tower apt 1204")} /></div>
+      <div><label className="label">{t("Address")}</label><input name="address" required className="input" /></div>
       <div className="grid grid-cols-2 gap-3">
-        <div><label className="label">Monthly rent</label><input name="rent" type="number" min="0" step="any" className="input" /></div>
-        <div><label className="label">Currency</label><input name="currency" defaultValue="QAR" className="input" /></div>
-        <div><label className="label">Start date</label><input name="start_date" type="date" className="input" /></div>
-        <div><label className="label">End date</label><input name="end_date" type="date" className="input" /></div>
-        <div><label className="label">Deposit</label><input name="deposit" type="number" min="0" step="any" className="input" /></div>
+        <div><label className="label">{t("Monthly rent")}</label><input name="rent" type="number" min="0" step="any" className="input" /></div>
+        <div><label className="label">{t("Currency")}</label><input name="currency" defaultValue="QAR" className="input" /></div>
+        <div><label className="label">{t("Start date")}</label><input name="start_date" type="date" className="input" /></div>
+        <div><label className="label">{t("End date")}</label><input name="end_date" type="date" className="input" /></div>
+        <div><label className="label">{t("Deposit")}</label><input name="deposit" type="number" min="0" step="any" className="input" /></div>
       </div>
-      <div><label className="label">Lease terms (optional, can be edited until signing)</label><textarea name="terms" rows={3} className="input" /></div>
+      <div><label className="label">{t("Lease terms (optional, can be edited until signing)")}</label><textarea name="terms" rows={3} className="input" /></div>
       <div>
-        <label className="label">{other === "owner" ? "Owner" : "Tenant"} email (we&apos;ll send them an invite)</label>
-        <input name="otherEmail" type="email" className="input" placeholder="Leave empty to share by WhatsApp instead" />
+        <label className="label">{t(other === "owner" ? "Landlord email (we'll send them an invite)" : "Tenant email (we'll send them an invite)")}</label>
+        <input name="otherEmail" type="email" className="input" placeholder={t("Leave empty to share by WhatsApp instead")} />
       </div>
     </Form>
   );
 }
 
 export function UploadBox({ rentalId, context, rooms, defaultRoom }: { rentalId: number; context: "move_in" | "move_out"; rooms: string[]; defaultRoom?: string }) {
+  const t = useT();
   const [count, setCount] = useState(0);
   const pick = useRef<HTMLInputElement>(null);
   const cam = useRef<HTMLInputElement>(null);
@@ -217,20 +228,20 @@ export function UploadBox({ rentalId, context, rooms, defaultRoom }: { rentalId:
     files.current = all; setCount(all.length);
   };
   return (
-    <Form url={`/api/rentals/${rentalId}/media`} multipart submitLabel={count ? `Upload ${count} file${count > 1 ? "s" : ""}` : "Upload"} extra={{ context }}
+    <Form url={`/api/rentals/${rentalId}/media`} multipart submitLabel={count ? t("Upload {n} files", { n: count }) : t("Upload")} extra={{ context }}
       onDone={() => setCount(0)}>
       <div>
-        <label className="label">Room</label>
-        <input name="room" list={`rooms-${context}`} required className="input" defaultValue={defaultRoom} placeholder="Pick or type a room" />
+        <label className="label">{t("Room")}</label>
+        <input name="room" list={`rooms-${context}`} required className="input" defaultValue={defaultRoom} placeholder={t("Pick or type a room")} />
         <datalist id={`rooms-${context}`}>{rooms.map((r) => <option key={r} value={r} />)}</datalist>
       </div>
       <div className="grid grid-cols-2 gap-2">
         <label className="btn-secondary cursor-pointer">
-          Take photo / video
+          {t("Take photo / video")}
           <input ref={cam} name="files" type="file" accept={ACCEPT_MEDIA} capture="environment" className="sr-only" onChange={sync} />
         </label>
         <label className="btn-secondary cursor-pointer">
-          Choose files
+          {t("Choose files")}
           <input ref={pick} name="files" type="file" accept={ACCEPT_MEDIA} multiple className="sr-only" onChange={sync} />
         </label>
       </div>
@@ -240,6 +251,7 @@ export function UploadBox({ rentalId, context, rooms, defaultRoom }: { rentalId:
 }
 
 export function FilePickers({ name = "files", accept = ACCEPT_MEDIA }: { name?: string; accept?: string }) {
+  const t = useT();
   const [count, setCount] = useState(0);
   const refs = [useRef<HTMLInputElement>(null), useRef<HTMLInputElement>(null)];
   const sync = () => setCount(refs.reduce((n, r) => n + (r.current?.files?.length ?? 0), 0));
@@ -252,8 +264,8 @@ export function FilePickers({ name = "files", accept = ACCEPT_MEDIA }: { name?: 
   return (
     <div>
       <div className="grid grid-cols-2 gap-2">
-        <label className="btn-secondary cursor-pointer">Take photo / video<input ref={refs[0]} name={name} type="file" accept={accept} capture="environment" className="sr-only" onChange={sync} /></label>
-        <label className="btn-secondary cursor-pointer">Attach files<input ref={refs[1]} name={name} type="file" accept={accept} multiple className="sr-only" onChange={sync} /></label>
+        <label className="btn-secondary cursor-pointer">{t("Take photo / video")}<input ref={refs[0]} name={name} type="file" accept={accept} capture="environment" className="sr-only" onChange={sync} /></label>
+        <label className="btn-secondary cursor-pointer">{t("Attach files")}<input ref={refs[1]} name={name} type="file" accept={accept} multiple className="sr-only" onChange={sync} /></label>
       </div>
       {count > 0 && <p className="mt-1 text-sm text-gray-600">{count} file{count > 1 ? "s" : ""} attached</p>}
     </div>
@@ -267,11 +279,12 @@ export function AutoRefresh({ ms = 4000 }: { ms?: number }) {
 }
 
 export function ItemResponse({ itemId, mine }: { itemId: number; mine: string | null }) {
+  const t = useT();
   const [note, setNote] = useState("");
   return (
     <div className="flex flex-wrap items-center gap-2">
       <ActionButton url={`/api/comparison-items/${itemId}`} body={{ response: "agree" }} label={mine === "agree" ? "Agreed ✓" : "Agree"} className={mine === "agree" ? "btn-primary !py-1.5" : "btn-secondary !py-1.5"} />
-      <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Reason (if disputing)" className="input !w-48 !py-1.5" />
+      <input value={note} onChange={(e) => setNote(e.target.value)} placeholder={t("Reason (if disputing)")} className="input !w-48 !py-1.5" />
       <ActionButton url={`/api/comparison-items/${itemId}`} body={{ response: "dispute", note }} label={mine === "dispute" ? "Disputed" : "Dispute"} className="btn-danger !py-1.5" />
     </div>
   );
@@ -286,7 +299,7 @@ export function TabNav({ base, tabs }: { base: string; tabs: { href: string; lab
         const active = t.href === "" ? path === base : path.startsWith(href);
         return (
           <Link key={t.href} href={href} className={`whitespace-nowrap rounded-full px-3.5 py-1.5 font-medium ${active ? "bg-brand-700 text-white" : "bg-white text-gray-700 ring-1 ring-gray-200 hover:bg-gray-50"}`}>
-            {t.label}{t.badge ? <span className={`ml-1.5 rounded-full px-1.5 text-xs ${active ? "bg-white/25" : "bg-amber-100 text-amber-800"}`}>{t.badge}</span> : null}
+            {t.label}{t.badge ? <span className={`ms-1.5 rounded-full px-1.5 text-xs ${active ? "bg-white/25" : "bg-amber-100 text-amber-800"}`}>{t.badge}</span> : null}
           </Link>
         );
       })}
@@ -295,29 +308,32 @@ export function TabNav({ base, tabs }: { base: string; tabs: { href: string; lab
 }
 
 export function PrintButton() {
-  return <button className="btn-secondary no-print" onClick={() => window.print()}>Print / save as PDF</button>;
+  const t = useT();
+  return <button className="btn-secondary no-print" onClick={() => window.print()}>{t("Print / save as PDF")}</button>;
 }
 
 /** Collapsible "add rental" box that keeps its own open state across page refreshes. */
 export function AddRentalBox({ title, defaultOpen, role }: { title: string; defaultOpen: boolean; role: "owner" | "tenant" }) {
+  const t = useT();
   const [open, setOpen] = useState(defaultOpen);
   return (
     <div className="card">
-      <button type="button" className="w-full text-left font-semibold" onClick={() => setOpen(!open)}>{open ? "−" : "+"} {title}</button>
+      <button type="button" className="w-full text-start font-semibold" onClick={() => setOpen(!open)}>{open ? "−" : "+"} {t(title)}</button>
       {open && <div className="mt-4"><NewRentalForm defaultRole={role} /></div>}
     </div>
   );
 }
 
 export function StaffForm() {
+  const t = useT();
   const [res, setRes] = useState<{ link: string; whatsapp: string; emailed: boolean } | null>(null);
   return (
     <div className="space-y-3">
-      <Form url="/api/staff" submitLabel="Add and invite" onDone={(r) => setRes({ link: r.link as string, whatsapp: r.whatsapp as string, emailed: !!r.emailed })}>
-        <div><label className="label">Name</label><input name="name" required className="input" /></div>
-        <div><label className="label">Role</label><input name="trade" list="trades" className="input" placeholder="e.g. Maintenance, Plumber, AC technician" /><datalist id="trades">{["Maintenance", "Plumber", "Electrician", "AC technician", "Cleaner", "Building manager"].map((t) => <option key={t} value={t} />)}</datalist></div>
-        <div><label className="label">WhatsApp number</label><input name="phone" type="tel" className="input" placeholder="+974 5555 1234" /></div>
-        <div><label className="label">Email (optional)</label><input name="email" type="email" className="input" /></div>
+      <Form url="/api/staff" submitLabel={t("Add and invite")} onDone={(r) => setRes({ link: r.link as string, whatsapp: r.whatsapp as string, emailed: !!r.emailed })}>
+        <div><label className="label">{t("Name")}</label><input name="name" required className="input" /></div>
+        <div><label className="label">{t("Role")}</label><input name="trade" list="trades" className="input" placeholder={t("e.g. Maintenance, Plumber, AC technician")} /><datalist id="trades">{["Maintenance", "Plumber", "Electrician", "AC technician", "Cleaner", "Building manager"].map((t) => <option key={t} value={t} />)}</datalist></div>
+        <div><label className="label">{t("WhatsApp number")}</label><input name="phone" type="tel" className="input" placeholder="+974 5555 1234" /></div>
+        <div><label className="label">{t("Email (optional)")}</label><input name="email" type="email" className="input" /></div>
       </Form>
       {res && <InviteResult {...res} />}
     </div>
@@ -325,10 +341,11 @@ export function StaffForm() {
 }
 
 export function AssignForm({ issueId, staff, current }: { issueId: number; staff: { id: number; name: string; trade: string | null }[]; current: number | null }) {
+  const t = useT();
   return (
-    <Form url={`/api/issues/${issueId}`} multipart submitLabel="Assign" buttonClass="btn-secondary" extra={{ action: "assign" }} resetOnSuccess={false}>
+    <Form url={`/api/issues/${issueId}`} multipart submitLabel={t("Assign")} buttonClass="btn-secondary" extra={{ action: "assign" }} resetOnSuccess={false}>
       <select name="staff_id" defaultValue={current ?? ""} className="input">
-        <option value="">Not assigned</option>
+        <option value="">{t("Not assigned")}</option>
         {staff.map((s) => <option key={s.id} value={s.id}>{s.name}{s.trade ? ` (${s.trade})` : ""}</option>)}
       </select>
     </Form>
@@ -337,6 +354,7 @@ export function AssignForm({ issueId, staff, current }: { issueId: number; staff
 
 /** Record a voice note in the browser and attach it to the surrounding form as a file input. */
 export function VoiceRecorder({ name = "files" }: { name?: string }) {
+  const t = useT();
   const input = useRef<HTMLInputElement>(null);
   const rec = useRef<MediaRecorder | null>(null);
   const [state, setState] = useState<"idle" | "recording" | "done" | "unsupported">("idle");
@@ -375,15 +393,15 @@ export function VoiceRecorder({ name = "files" }: { name?: string }) {
   return (
     <div className="rounded-xl border border-dashed border-gray-300 p-3">
       <input ref={input} type="file" name={name} className="hidden" />
-      {state === "idle" && <button type="button" className="btn-secondary w-full" onClick={start}>🎙️ Record a voice note</button>}
-      {state === "recording" && <button type="button" className="btn-danger w-full" onClick={() => rec.current?.stop()}>⏹ Stop recording ({secs}s)</button>}
+      {state === "idle" && <button type="button" className="btn-secondary w-full" onClick={start}>{t("🎙️ Record a voice note")}</button>}
+      {state === "recording" && <button type="button" className="btn-danger w-full" onClick={() => rec.current?.stop()}>{t("⏹ Stop recording (")}{secs}{t("s)")}</button>}
       {state === "done" && url && (
         <div className="space-y-1">
           <audio src={url} controls className="w-full" />
-          <button type="button" className="text-xs font-semibold text-red-700" onClick={() => { if (input.current) input.current.value = ""; setUrl(null); setState("idle"); }}>Delete and re-record</button>
+          <button type="button" className="text-xs font-semibold text-red-700" onClick={() => { if (input.current) input.current.value = ""; setUrl(null); setState("idle"); }}>{t("Delete and re-record")}</button>
         </div>
       )}
-      {state === "unsupported" && <p className="text-xs text-gray-500">Voice recording isn&apos;t available in this browser. You can attach an audio file instead.</p>}
+      {state === "unsupported" && <p className="text-xs text-gray-500">{t("Voice recording isn't available in this browser. You can attach an audio file instead.")}</p>}
     </div>
   );
 }
@@ -392,23 +410,24 @@ export function IssueReportForm({ rentalId, role, currency, rooms, types, catego
   rentalId: number; role: "owner" | "tenant"; currency: string; rooms: string[];
   types: Record<string, string>; categories: Record<string, { label: string; icon: string; hint: string }>; urgency: Record<string, string>;
 }) {
+  const t = useT();
   const [cat, setCat] = useState("other");
   const [urg, setUrg] = useState("normal");
   const other = role === "owner" ? "tenant" : "landlord";
   return (
-    <Form url={`/api/rentals/${rentalId}/issues`} multipart submitLabel={`Send to the ${other}`} extra={{ category: cat, urgency: urg }} onDone={undefined}>
+    <Form url={`/api/rentals/${rentalId}/issues`} multipart submitLabel={t(other === "landlord" ? "Send to the landlord" : "Send to the tenant")} extra={{ category: cat, urgency: urg }} onDone={undefined}>
       <div>
-        <span className="label">What&apos;s the problem about?</span>
+        <span className="label">{t("What's the problem about?")}</span>
         <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-3">
           {Object.entries(categories).map(([k, c]) => (
             <button type="button" key={k} onClick={() => setCat(k)} className={`rounded-xl border px-1.5 py-2 text-center text-xs font-medium ${cat === k ? "border-brand-600 bg-brand-50 text-brand-800" : "border-gray-200 bg-white"}`}>
-              <span className="block text-lg">{c.icon}</span>{c.label}
+              <span className="block text-lg">{c.icon}</span>{t(c.label)}
             </button>
           ))}
         </div>
       </div>
       <div>
-        <span className="label">How urgent?</span>
+        <span className="label">{t("How urgent?")}</span>
         <div className="grid grid-cols-3 gap-1.5">
           {Object.entries(urgency).map(([k, l]) => (
             <button type="button" key={k} onClick={() => setUrg(k)} className={`rounded-xl border py-2 text-sm font-semibold ${urg === k ? (k === "urgent" ? "border-red-500 bg-red-50 text-red-700" : "border-brand-600 bg-brand-50 text-brand-800") : "border-gray-200"}`}>{l}</button>
@@ -416,30 +435,72 @@ export function IssueReportForm({ rentalId, role, currency, rooms, types, catego
         </div>
       </div>
       <div>
-        <label className="label">Type</label>
+        <label className="label">{t("Type")}</label>
         <select name="type" className="input" required defaultValue={role === "owner" ? "upkeep" : "maintenance"}>
           {Object.entries(types).filter(([k]) => role === "owner" || k !== "upkeep").map(([k, v]) => <option key={k} value={k}>{v}</option>)}
         </select>
       </div>
-      <div><label className="label">Room / area</label><input name="room" list="issue-rooms" className="input" placeholder="Optional, e.g. Kitchen, whole apartment" /><datalist id="issue-rooms">{rooms.map((x) => <option key={x} value={x} />)}</datalist></div>
-      <div><label className="label">Short title</label><input name="title" required className="input" placeholder={`e.g. ${categories[cat].label} in the ${cat === "pests" ? "kitchen" : "bathroom"}`} /></div>
+      <div><label className="label">{t("Room / area")}</label><input name="room" list="issue-rooms" className="input" placeholder={t("Optional, e.g. Kitchen, whole apartment")} /><datalist id="issue-rooms">{rooms.map((x) => <option key={x} value={x} />)}</datalist></div>
+      <div><label className="label">{t("Short title")}</label><input name="title" required className="input" placeholder={t("e.g. {what} in the {room}", { what: t(categories[cat].label), room: t(cat === "pests" ? "Kitchen" : "Bathroom") })} /></div>
       <div>
-        <label className="label">Describe it</label>
+        <label className="label">{t("Describe it")}</label>
         <textarea name="description" rows={4} className="input" placeholder={categories[cat].hint} />
-        <p className="mt-1 text-xs text-gray-500">Photos are optional. Not everything can be photographed (smells, noise, pests at night), so describe it, record a voice note, or both.</p>
+        <p className="mt-1 text-xs text-gray-500">{t("Photos are optional. Not everything can be photographed (smells, noise, pests at night), so describe it, record a voice note, or both.")}</p>
       </div>
       <VoiceRecorder />
       <FilePickers accept={ACCEPT_MEDIA_AUDIO} />
       {role === "owner" && (
         <div className="space-y-2 rounded-xl bg-gray-50 p-3">
-          <p className="text-xs font-semibold text-gray-500">Landlord only (the tenant doesn&apos;t see costs)</p>
+          <p className="text-xs font-semibold text-gray-500">{t("Landlord only (the tenant doesn't see costs)")}</p>
           <div className="grid grid-cols-2 gap-2">
-            <div><label className="label">Cost ({currency})</label><input name="repair_cost" type="number" step="any" min="0" className="input" /></div>
-            <div><label className="label">Paid to / note</label><input name="cost_note" className="input" placeholder="e.g. CoolAir Services" /></div>
+            <div><label className="label">{t("Cost (")}{currency})</label><input name="repair_cost" type="number" step="any" min="0" className="input" /></div>
+            <div><label className="label">{t("Paid to / note")}</label><input name="cost_note" className="input" placeholder={t("e.g. CoolAir Services")} /></div>
           </div>
-          <label className="flex items-center gap-2 text-sm"><input type="checkbox" name="already_done" value="true" /> Already done (log finished work, e.g. AC service)</label>
+          <label className="flex items-center gap-2 text-sm"><input type="checkbox" name="already_done" value="true" /> {t("Already done (log finished work, e.g. AC service)")}</label>
         </div>
       )}
     </Form>
+  );
+}
+
+const I18nCtx = createContext<{ lang: Lang; t: TFn }>({ lang: "en", t: makeT(null) });
+
+export function I18nProvider({ lang, dict, children }: { lang: Lang; dict: Dict | null; children: React.ReactNode }) {
+  return <I18nCtx.Provider value={{ lang, t: makeT(dict) }}>{children}</I18nCtx.Provider>;
+}
+export function useT() { return useContext(I18nCtx).t; }
+
+export function LanguageMenu() {
+  const { lang } = useContext(I18nCtx);
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const cur = LANGS.find((l) => l.code === lang) ?? LANGS[0];
+  useEffect(() => {
+    const close = (e: MouseEvent) => { if (!ref.current?.contains(e.target as Node)) setOpen(false); };
+    document.addEventListener("click", close);
+    return () => document.removeEventListener("click", close);
+  }, []);
+  return (
+    <div ref={ref} className="relative">
+      <button type="button" aria-label="Language" className="flex items-center gap-1 rounded-lg px-2 py-1.5 hover:bg-gray-100" onClick={() => setOpen(!open)}>
+        <span className="text-lg leading-none">{cur.flag}</span><span className="text-xs font-semibold uppercase">{cur.code}</span>
+      </button>
+      {open && (
+        <ul className="absolute end-0 z-30 mt-1 w-48 overflow-hidden rounded-xl border border-gray-200 bg-white py-1 shadow-lg">
+          {LANGS.map((l) => (
+            <li key={l.code}>
+              <button type="button" className={`flex w-full items-center gap-3 px-3 py-2 text-start text-sm hover:bg-gray-50 ${l.code === lang ? "font-bold text-brand-700" : ""}`}
+                onClick={() => {
+                  document.cookie = `lang=${l.code}; path=/; max-age=31536000; samesite=lax`;
+                  setOpen(false); router.refresh();
+                }}>
+                <span className="text-xl leading-none">{l.flag}</span>{l.name}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }
