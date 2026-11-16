@@ -1,0 +1,39 @@
+import Link from "next/link";
+import { currentUser, getUser } from "@/lib/auth";
+import { getInvite } from "@/lib/invites";
+import { getRental, roleOf } from "@/lib/rentals";
+import { ActionButton } from "@/components/client";
+import { EmptyState } from "@/components/ui";
+
+export default async function InvitePage({ params }: { params: Promise<{ token: string }> }) {
+  const { token } = await params;
+  const inv = getInvite(token);
+  if (!inv) return <EmptyState title="This invite link isn't valid" href="/" cta="Go home" />;
+  const rental = getRental(inv.rental_id)!;
+  const inviter = getUser(inv.created_by);
+  const user = await currentUser();
+  const slotTaken = inv.role === "owner" ? rental.owner_id : rental.tenant_id;
+  const mine = user && roleOf(rental, user);
+  return (
+    <div className="mx-auto max-w-md space-y-4 py-6">
+      <div className="card space-y-3">
+        <p className="muted">{inviter?.name} invited you to join</p>
+        <h1 className="h1">{rental.name}</h1>
+        <p className="text-gray-600">{rental.address}</p>
+        <p>You&apos;ll join as the <b>{inv.role}</b>. Move-in photos, the lease, repairs and reports will be shared between you in one timestamped record.</p>
+        {mine ? (
+          <Link href={`/rentals/${rental.id}`} className="btn-primary">Open the rental</Link>
+        ) : slotTaken ? (
+          <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800">This rental already has a {inv.role}. Ask {inviter?.name} for a new link.</p>
+        ) : user ? (
+          <ActionButton url={`/api/invites/${token}`} label={`Join as ${inv.role}`} className="btn-primary" />
+        ) : (
+          <div className="flex gap-2">
+            <Link href={`/signup?invite=${token}`} className="btn-primary">Sign up and join</Link>
+            <Link href={`/login?invite=${token}`} className="btn-secondary">I have an account</Link>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

@@ -1,103 +1,44 @@
-import Image from "next/image";
+import Link from "next/link";
+import { redirect } from "next/navigation";
+import { currentUser } from "@/lib/auth";
 
-export default function Home() {
+const TENANT = ["Photo and video proof of the apartment before you move in", "Sign only after the landlord approves that proof", "Report repairs and breakages with photos, tracked until Done", "Private tracker for electricity, water and internet bills", "AI move-out check so you don't pay for damage you didn't cause"];
+const OWNER = ["Approve the move-in condition before the lease is signed", "Tamper-evident, timestamped record of every room", "All repair and damage reports for each property in one log", "Invite tenants by email or WhatsApp", "AI compares move-out with move-in and flags new damage"];
+
+export default async function Home() {
+  if (await currentUser()) redirect("/dashboard");
   return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
+    <div className="space-y-8 py-4">
+      <section className="space-y-2 text-center">
+        <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">Who are you?</h1>
+        <p className="mx-auto max-w-xl text-gray-600">Handover AI keeps move-in proof, the lease, repairs and move-out checks in one shared, timestamped record.</p>
+      </section>
+      <section className="grid gap-4 sm:grid-cols-2">
+        {([["tenant", "🏠", "I'm a tenant", "Renting a place", TENANT], ["owner", "🏢", "I'm a landlord", "Renting out a property", OWNER]] as const).map(([as, icon, title, sub, points]) => (
+          <div key={as} className="card flex flex-col gap-4 !p-6">
+            <div>
+              <div className="text-4xl">{icon}</div>
+              <h2 className="mt-2 text-xl font-bold">{title}</h2>
+              <p className="muted">{sub}</p>
+            </div>
+            <ul className="flex-1 space-y-1.5 text-sm text-gray-700">
+              {points.map((p) => <li key={p} className="flex gap-2"><span className="text-brand-600">✓</span>{p}</li>)}
+            </ul>
+            <div className="flex gap-2">
+              <Link href={`/signup?as=${as}`} className="btn-primary flex-1">Sign up as {as === "owner" ? "landlord" : "tenant"}</Link>
+              <Link href="/login" className="btn-secondary">Log in</Link>
+            </div>
+          </div>
+        ))}
+      </section>
+      <section className="card">
+        <h2 className="h2">How it works</h2>
+        <ol className="mt-3 grid gap-3 text-sm sm:grid-cols-5">
+          {["Record move-in photos and videos", "Landlord approves and the set is sealed", "Then the lease is signed", "Log repairs, breakages and wear and tear", "AI compares at move-out"].map((s, i) => (
+            <li key={s} className="rounded-xl bg-gray-50 p-3"><span className="font-bold text-brand-700">{i + 1}.</span> {s}</li>
+          ))}
         </ol>
-
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
-        </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+      </section>
     </div>
   );
 }

@@ -1,36 +1,44 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Handover AI
 
-## Getting Started
+Move-in and move-out proof, leases, repairs and reports for tenants and landlords, in one shared, timestamped record.
 
-First, run the development server:
+## What it does
+
+- **Tenant or landlord first.** The landing page asks who you are; each gets its own dashboard (and can switch if they're both).
+- **Either side starts a rental** and invites the other by email or a WhatsApp link.
+- **Move-in inspection.** Photos and videos room by room, straight from the phone camera. Every file gets a SHA-256 fingerprint and server timestamp on upload. Both sides see everything.
+- **Owner approval seals it.** The landlord approves (or asks for more pictures). Approval writes a seal over the exact file list; after that, move-in media can't be added, swapped or removed.
+- **Lease signing is locked until approval** (enforced on the server). Each signature hashes the lease terms plus the move-in seal.
+- **Issues and repairs.** Maintenance, breakage and wear-and-tear reports with photos/videos, comments and status (Reported → Acknowledged → In progress → Done). The other side confirms or reopens a Done item. Nothing is ever removed from the log.
+- **Tenant-only spending tracker.** Electricity, water, internet and other bills with monthly totals, paid/unpaid, and a bill photo. The landlord can't see it.
+- **Move-out AI comparison.** Claude compares move-out photos/video frames with the sealed move-in set room by room, cross-checks the issue log, and labels each finding as new damage, reported during the lease, wear and tear, cleaning or unclear. Both sides agree or dispute each item.
+- **Proof report.** Re-hashes every sealed file, checks the seal and signatures, and verifies the hash-chained activity log. Printable / save as PDF.
+- **Emails both ways** for invites, approvals, signatures, issue updates and the AI report (via Resend, or shown on the in-app Emails page when no key is set).
+
+## Run it
+
+Requires Node 20+ and `ffmpeg`/`ffprobe` on the PATH (used to pull frames from videos).
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+cp .env.example .env.local   # add ANTHROPIC_API_KEY (and RESEND_API_KEY if you want real emails)
+npm install
+npm run dev                   # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Production: `npm run build && npm start`. Data lives in `./data` (SQLite + uploads); back that folder up.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Tech
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Next.js 15 (App Router, TypeScript, Tailwind), SQLite via better-sqlite3, local file storage, ffmpeg, Anthropic SDK (`claude-opus-5-5`, structured JSON output, server-side refusal fallback).
 
-## Learn More
+## Where things live
 
-To learn more about Next.js, take a look at the following resources:
+- `src/lib/rentals.ts`: access rules, seal, signature hashes, verification
+- `src/lib/audit.ts`: hash-chained activity log
+- `src/lib/ai.ts`, `src/lib/video.ts`: move-out comparison and frame extraction
+- `src/app/api/**`: all actions (each checks the user's role on the rental)
+- `src/app/rentals/[id]/**`: rental screens (move-in, lease, issues, move-out, documents, spending, timeline, proof)
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Next steps for production
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Swap SQLite/local files for Postgres + S3 (or similar), add password reset and email verification, add a trusted timestamping service (RFC 3161) for the seal, and wrap the site as an iOS/Android app (e.g. Capacitor) once the flows are settled.
