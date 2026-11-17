@@ -30,7 +30,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           <div className="mx-auto flex h-14 max-w-5xl items-center justify-between gap-3 px-4">
             <Link href={user ? "/dashboard" : "/"} className="flex items-center gap-2 font-bold">
               <span className="grid h-8 w-8 place-items-center rounded-lg bg-brand-700 text-sm text-white">H</span>
-              <span>Handover AI</span>
+              <span className={user ? "hidden sm:inline" : ""}>Handover AI</span>
             </Link>
             {user ? (
               <nav className="flex items-center gap-1 text-sm">
