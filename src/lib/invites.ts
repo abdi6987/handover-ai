@@ -1,3 +1,4 @@
+import { assertCanAddProperty } from "./billing";
 import crypto from "node:crypto";
 import { db, now } from "./db";
 import { audit } from "./audit";
@@ -45,6 +46,7 @@ export async function acceptInvite(token: string, user: User): Promise<number> {
     throw new HttpError(400, "You are already the other party on this rental. Ask them to share the invite with the right person.");
   }
   if (r[slot]) throw new HttpError(400, `This rental already has a ${inv.role}.`);
+  if (inv.role === "owner") await assertCanAddProperty(user);
   await db().prepare(`UPDATE rentals SET ${slot} = ? WHERE id = ?`).run(user.id, r.id);
   await db().prepare("UPDATE invites SET accepted_at = ?, accepted_by = ? WHERE token = ?").run(now(), user.id, token);
   await audit(r.id, user.id, "invite.accepted", { role: inv.role });

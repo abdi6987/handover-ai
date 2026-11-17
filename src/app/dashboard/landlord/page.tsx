@@ -5,6 +5,7 @@ import { dashboardData, rentalStage } from "@/lib/dashboard";
 import { landlordLog } from "@/lib/maintenance";
 import { AddRental, IssueList, Stat, SwitchView, Todos } from "@/components/dashboard";
 import { Badge, fmtMoney } from "@/components/ui";
+import { paymentsEnabled, planFor } from "@/lib/billing";
 
 export default async function LandlordDashboard() {
   const t = await getT();
@@ -14,6 +15,7 @@ export default async function LandlordDashboard() {
   const income = active.reduce((s, r) => s + (r.rent ?? 0), 0);
   const { rows: log } = await landlordLog(user.id);
   const year = new Date().getFullYear().toString();
+  const plan = await planFor(user.id);
   const yearCost = (id: number) => log.filter((l) => l.rental_id === id && l.created_at.startsWith(year)).reduce((s, l) => s + (l.repair_cost ?? 0), 0);
   return (
     <div className="space-y-5">
@@ -25,6 +27,7 @@ export default async function LandlordDashboard() {
         <div className="flex items-center gap-3">
           <Link href="/dashboard/landlord/maintenance" className="btn-primary">{t("🛠️ Maintenance log")}</Link>
           <Link href="/dashboard/landlord/staff" className="btn-secondary">{t("🧰 Staff")}</Link>
+          {paymentsEnabled() && <Link href="/billing" className="btn-secondary">💳 {t("Plan:")} {t(plan.name)}</Link>}
           <SwitchView to="tenant" />
         </div>
       </div>

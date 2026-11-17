@@ -7,7 +7,7 @@ import { db } from "./db";
  * - Otherwise (dev, tests): the web process runs each job right after queueing it.
  * Failed jobs are retried with growing delays, then marked failed.
  */
-export type JobKind = "preview" | "email" | "compare";
+export type JobKind = "preview" | "email" | "compare" | "renew";
 type Job = { id: number; kind: JobKind; payload: Record<string, unknown>; attempts: number };
 
 const MAX_ATTEMPTS = Number(process.env.JOB_MAX_ATTEMPTS || 5);
@@ -22,6 +22,10 @@ const handlers: Record<JobKind, (p: Record<string, unknown>) => Promise<void>> =
   async email(p) {
     const { deliverEmail } = await import("./notify");
     await deliverEmail(Number(p.outboxId));
+  },
+  async renew(p) {
+    const { renew } = await import("./subscriptions");
+    await renew(Number(p.userId));
   },
   async compare(p) {
     const { runComparison } = await import("./ai");

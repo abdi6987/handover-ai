@@ -71,6 +71,31 @@ The script takes about 20 minutes. Most of that is creating the database. You ca
 
 The database tables are created automatically the first time the app starts.
 
+## Paid plans (switched off)
+
+Landlords can pay for **Pro** (QAR 49/month or 490/year) or **Business** (QAR 199/month or 1,990/year) with Apple Pay or a card, through [Tap Payments](https://www.tap.company). Tenants and staff are always free. While payments are off, nobody sees prices and every landlord gets every feature.
+
+To switch payments on:
+1. Open a Tap account with your commercial registration. Ask Tap to enable **Apple Pay** and **Save Card / recurring payments**.
+2. Put the secret key in Secret Manager:
+   ```bash
+   printf '%s' 'sk_live_...' | gcloud secrets versions add tap-secret-key --data-file=-
+   ```
+3. In Tap's dashboard, set the webhook URL to `https://<DOMAIN>/api/billing/webhook`.
+4. Turn payments on for both services:
+   ```bash
+   gcloud run services update handover-web --region me-central1 --update-env-vars PAYMENTS_ENABLED=1
+   gcloud run services update handover-worker --region me-central1 --update-env-vars PAYMENTS_ENABLED=1
+   ```
+   To test first, use Tap's `sk_test_...` key on a staging copy.
+
+How it works:
+- The first payment goes through Tap's payment page, which shows Apple Pay on iPhone, iPad and Mac Safari and a card form everywhere else. That payment saves the card.
+- The worker renews each plan automatically on its renewal date.
+- If a renewal fails, the landlord gets 7 days' grace, daily retries and emails. After that the account drops to Free, and nothing is deleted.
+- Every payment produces a receipt (by email and on the Billing page) and an entry in the tamper-proof log.
+- Prices can be changed with `PRICE_PRO_MONTH`, `PRICE_PRO_YEAR`, `PRICE_BUSINESS_MONTH` and `PRICE_BUSINESS_YEAR`.
+
 ## Shipping updates
 
 ```bash

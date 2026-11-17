@@ -1,3 +1,4 @@
+import { assertAiReports } from "@/lib/billing";
 import { bad, handler } from "@/lib/api";
 import { audit } from "@/lib/audit";
 import { db, now } from "@/lib/db";
@@ -8,6 +9,7 @@ export const POST = handler(async (_req, user, p) => {
   const { rental } = await rentalForUser(Number(p.id), user);
   if (!fullySigned(rental) || !rental.movein_seal) bad("Comparison needs a signed lease and sealed move-in media");
   if (!(await mediaFor(rental.id, "move_out")).length) bad("Add move-out photos or videos first");
+  await assertAiReports(rental.owner_id);
   const running = await db().prepare("SELECT id FROM comparisons WHERE rental_id = ? AND status = 'running'").get(rental.id);
   if (running) bad("A comparison is already running");
   const info = await db().prepare("INSERT INTO comparisons (rental_id, created_by, created_at, status) VALUES (?,?,?, 'running')").run(rental.id, user.id, now());

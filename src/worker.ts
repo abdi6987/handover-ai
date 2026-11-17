@@ -5,6 +5,7 @@
 import http from "node:http";
 import { cleanup, runJob } from "./lib/jobs";
 import { ping } from "./lib/db";
+import { billingTick } from "./lib/subscriptions";
 
 const CONCURRENCY = Number(process.env.WORKER_CONCURRENCY || 2);
 let stopping = false;
@@ -25,9 +26,13 @@ async function main() {
   console.log(`[worker] started with ${CONCURRENCY} slots`);
   const loops = Array.from({ length: CONCURRENCY }, (_, i) => loop(i));
   const tidy = setInterval(() => void cleanup().catch((e) => console.error("[worker] cleanup", e)), 10 * 60 * 1000);
+  // Subscription renewals and plan expiry (does nothing while payments are switched off).
+  const tick = () => void billingTick().catch((e) => console.error("[worker] billing", e));
+  tick();
+  const billing = setInterval(tick, 5 * 60 * 1000);
   // Cloud Run expects something listening on $PORT; it doubles as a health check.
   const server = http.createServer((_req, res) => res.end(stopping ? "stopping" : "ok")).listen(Number(process.env.PORT || 8081));
-  const stop = () => { stopping = true; clearInterval(tidy); server.close(); };
+  const stop = () => { stopping = true; clearInterval(tidy); clearInterval(billing); server.close(); };
   process.on("SIGTERM", stop);
   process.on("SIGINT", stop);
   await Promise.all(loops);

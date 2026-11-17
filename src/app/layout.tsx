@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import Link from "next/link";
 import { currentUser } from "@/lib/auth";
+import { paymentsEnabled } from "@/lib/billing";
 import { I18nProvider, LanguageMenu, LogoutButton } from "@/components/client";
 import { DICTS, getLang, getT, langInfo } from "@/lib/i18n";
 import "./globals.css";
@@ -31,6 +32,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                 <Link href="/dashboard" className="rounded-lg px-2.5 py-1.5 hover:bg-gray-100">{t(user.account_type === "staff" ? "Jobs" : "Rentals")}</Link>
                 {user.account_type === "owner" && <Link href="/dashboard/landlord/maintenance" className="hidden rounded-lg px-2.5 py-1.5 hover:bg-gray-100 sm:inline">{t("Maintenance")}</Link>}
                 {user.account_type === "owner" && <Link href="/dashboard/landlord/staff" className="hidden rounded-lg px-2.5 py-1.5 hover:bg-gray-100 sm:inline">{t("Staff")}</Link>}
+                {user.account_type === "owner" && paymentsEnabled() && <Link href="/billing" className="hidden rounded-lg px-2.5 py-1.5 hover:bg-gray-100 sm:inline">{t("Billing")}</Link>}
                 <Link href="/inbox" className="rounded-lg px-2.5 py-1.5 hover:bg-gray-100">{t("Emails")}</Link>
                 <LanguageMenu />
                 <LogoutButton />

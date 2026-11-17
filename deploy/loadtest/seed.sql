@@ -9,7 +9,7 @@ SET synchronous_commit = off;
 -- Users 1..100,000 are landlords, the rest tenants.
 INSERT INTO users (id, email, name, phone, password_hash, created_at, account_type, email_verified_at, terms_accepted_at)
 SELECT i, 'lt' || i || '@loadtest.invalid', 'Load User ' || i, '+974 5' || lpad((i % 10000000)::text, 7, '0'), :pw_hash,
-       '2026-01-01T00:00:00.000Z', CASE WHEN i <= 100000 THEN 'landlord' ELSE 'tenant' END,
+       '2026-01-01T00:00:00.000Z', CASE WHEN i <= 100000 THEN 'owner' ELSE 'tenant' END,
        '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z'
 FROM generate_series(1, 1000000) i;
 SELECT setval(pg_get_serial_sequence('users', 'id'), 1000000);
