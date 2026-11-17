@@ -87,17 +87,17 @@ for sa in "$WEB_SA" "$WORKER_SA"; do
 done
 
 step "Secrets (fill these in: see README)"
-for s in anthropic-api-key resend-api-key google-client-secret tap-secret-key; do
+for s in anthropic-api-key resend-api-key google-client-secret tap-secret-key whatsapp-token vapid-private-key; do
   exists g secrets describe "$s" || printf 'unset' | g secrets create "$s" --data-file=- --replication-policy user-managed --locations "$REGION"
 done
-for s in database-url anthropic-api-key resend-api-key google-client-secret tap-secret-key; do
+for s in database-url anthropic-api-key resend-api-key google-client-secret tap-secret-key whatsapp-token vapid-private-key; do
   for sa in "$WEB_SA" "$WORKER_SA"; do
     g secrets add-iam-policy-binding "$s" --member "serviceAccount:$sa" --role roles/secretmanager.secretAccessor >/dev/null
   done
 done
 
-COMMON_ENV="APP_URL=${APP_URL},GCS_BUCKET=${BUCKET},JOB_MODE=worker,DISPLAY_TZ=Asia/Qatar,TRUSTED_PROXY_HOPS=2,PAYMENTS_ENABLED=${PAYMENTS_ENABLED:-0},GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-}"
-SECRETS="TAP_SECRET_KEY=tap-secret-key:latest,DATABASE_URL=database-url:latest,ANTHROPIC_API_KEY=anthropic-api-key:latest,RESEND_API_KEY=resend-api-key:latest,GOOGLE_CLIENT_SECRET=google-client-secret:latest"
+COMMON_ENV="APP_URL=${APP_URL},GCS_BUCKET=${BUCKET},JOB_MODE=worker,DISPLAY_TZ=Asia/Qatar,TRUSTED_PROXY_HOPS=2,PAYMENTS_ENABLED=${PAYMENTS_ENABLED:-0},GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-},WHATSAPP_PHONE_ID=${WHATSAPP_PHONE_ID:-},VAPID_PUBLIC_KEY=${VAPID_PUBLIC_KEY:-}"
+SECRETS="TAP_SECRET_KEY=tap-secret-key:latest,DATABASE_URL=database-url:latest,ANTHROPIC_API_KEY=anthropic-api-key:latest,RESEND_API_KEY=resend-api-key:latest,GOOGLE_CLIENT_SECRET=google-client-secret:latest,WHATSAPP_TOKEN=whatsapp-token:latest,VAPID_PRIVATE_KEY=vapid-private-key:latest"
 
 step "Web app (Cloud Run)"
 # Node renders pages on one core, so many small instances beat a few big ones. The load test measured ~55 requests/s

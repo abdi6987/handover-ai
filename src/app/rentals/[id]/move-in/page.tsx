@@ -4,8 +4,9 @@ import { getUser } from "@/lib/auth";
 import { mediaFor, moveInLocked } from "@/lib/rentals";
 import { appUrl } from "@/lib/notify";
 import { Form, UploadBox } from "@/components/client";
-import { Badge, fmt, groupByRoom, MediaGrid, WhatsAppLink } from "@/components/ui";
-import { ROOMS } from "@/lib/types";
+import { Badge, fmt, WhatsAppLink } from "@/components/ui";
+import { InspectionRooms, ReportCard, RoomEditor, roomOptions } from "@/components/inspection";
+import { roomsOf } from "@/lib/inspections";
 
 export default async function MoveIn({ params }: { params: Promise<{ id: string }> }) {
   const t = await getT();
@@ -13,7 +14,7 @@ export default async function MoveIn({ params }: { params: Promise<{ id: string 
   const { user, rental: r, role, names } = await loadRental(id);
   const media = await mediaFor(r.id, "move_in");
   const locked = moveInLocked(r);
-  const byRoom = groupByRoom(media);
+  const rooms = await roomsOf(r.id);
   const both = r.owner_id && r.tenant_id;
   const link = appUrl(`/rentals/${r.id}/move-in`);
   return (
@@ -27,6 +28,7 @@ export default async function MoveIn({ params }: { params: Promise<{ id: string 
             : <Badge>{t("Open for uploads")}</Badge>}
         </div>
         <p className="muted">{t("Photograph and film every room, including walls, floors, appliances, windows and any existing marks. Each file is fingerprinted (SHA-256) and timestamped the moment it's uploaded, and both sides can see everything.")}</p>
+        <p className="muted">{t("Then rate each item in the room-by-room checklist. The landlord's approval seals the photos and the ratings together.")}</p>
         {r.movein_status === "changes_requested" && r.movein_note && <p className="rounded-lg bg-red-50 p-3 text-sm text-red-800"><b>{t("Owner's note:")}</b> {r.movein_note}</p>}
         {r.movein_status === "approved" && (
           <div className="rounded-lg bg-green-50 p-3 text-sm text-green-900">
@@ -36,19 +38,17 @@ export default async function MoveIn({ params }: { params: Promise<{ id: string 
         )}
       </div>
 
+      {r.movein_status === "approved" && <ReportCard r={r} stage="move_in" />}
+
       {!locked && (
         <div className="card space-y-3">
           <h2 className="h2">{t("Add photos and videos")}</h2>
-          <UploadBox rentalId={r.id} context="move_in" rooms={ROOMS.map((x) => t(x))} />
+          <UploadBox rentalId={r.id} context="move_in" rooms={await roomOptions(rooms)} />
         </div>
       )}
 
-      {[...byRoom.entries()].map(([room, items]) => (
-        <div key={room} className="card space-y-3">
-          <h3 className="font-semibold">{t(room)} <span className="muted">({items.length})</span></h3>
-          <MediaGrid media={items} names={names} canDelete={(m) => !locked && m.uploaded_by === user.id} />
-        </div>
-      ))}
+      <RoomEditor r={r} rooms={rooms} userId={user.id} />
+      <InspectionRooms r={r} stage="move_in" rooms={rooms} media={media} names={names} open={!locked} canDelete={(m) => !locked && m.uploaded_by === user.id} />
       {media.length === 0 && <p className="muted">{t("No move-in photos yet.")}</p>}
 
       {both && !locked && media.length > 0 && (

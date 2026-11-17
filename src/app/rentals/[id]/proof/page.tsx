@@ -2,6 +2,7 @@ import { loadRental } from "@/lib/page";
 import { getT } from "@/lib/i18n";
 import { verifyAuditChain, rentalAudit } from "@/lib/audit";
 import { issuesFor, verifyRental } from "@/lib/rentals";
+import { reportRow, STAGES, verifyInspections } from "@/lib/inspections";
 import { Badge, fmt } from "@/components/ui";
 import { PrintButton } from "@/components/client";
 import { ISSUE_STATUS, ISSUE_TYPES } from "@/lib/types";
@@ -10,11 +11,12 @@ export default async function Proof({ params }: { params: Promise<{ id: string }
   const t = await getT();
   const { id } = await params;
   const { rental: r, names } = await loadRental(id);
-  const checks = await verifyRental(r);
+  const checks = [...(await verifyRental(r)), ...(await verifyInspections(r))];
   const chain = await verifyAuditChain(r.id);
   const allOk = checks.every((c) => c.ok) && chain.ok;
   const manifest = r.movein_manifest ? (JSON.parse(r.movein_manifest) as { files: { id: number; room: string; name: string; sha256: string; uploaded_at: string; uploaded_by: number }[] }) : null;
   const issues = await issuesFor(r.id);
+  const reports = await Promise.all(STAGES.map(async (stage) => ({ stage, row: await reportRow(r.id, stage) })));
   const audit = await rentalAudit(r.id);
   return (
     <div className="space-y-4">
@@ -49,6 +51,18 @@ export default async function Proof({ params }: { params: Promise<{ id: string }
       <div className="card space-y-2 text-sm">
         <h3 className="font-semibold">{t("Signatures")}</h3>
         {(["owner", "tenant"] as const).map((s) => <p key={s}><span>{t(s === "owner" ? "Landlord" : "Tenant")}</span>: {r[`${s}_signed_at`] ? <>{t("signed as \"{name}\" on {date}", { name: r[`${s}_sign_name`] ?? "", date: fmt(r[`${s}_signed_at`]) })} <span className="mono text-gray-500">{r[`${s}_sign_hash`]}</span></> : t("not signed")}</p>)}
+      </div>
+      <div className="card space-y-2 text-sm">
+        <h3 className="font-semibold">{t("Inspection reports")}</h3>
+        {reports.map(({ stage, row }) => (
+          <div key={stage}>
+            <p className="font-medium"><a className="text-brand-700" href={`/rentals/${r.id}/report/${stage === "move_in" ? "move-in" : "move-out"}`}>{t(stage === "move_in" ? "Move-in report" : "Move-out report")}</a></p>
+            {row ? <>
+              <p className="mono text-gray-500">{t("Report fingerprint:")} {row.report_hash}</p>
+              {(["owner", "tenant"] as const).map((s) => <p key={s}>{t(s === "owner" ? "Landlord" : "Tenant")}: {row[`${s}_signed_at`] ? t("signed as \"{name}\" on {date}", { name: row[`${s}_sign_name`] ?? "", date: fmt(row[`${s}_signed_at`]) }) : t("not signed")}</p>)}
+            </> : <p className="text-gray-500">{t("not signed")}</p>}
+          </div>
+        ))}
       </div>
       <div className="card space-y-2">
         <h3 className="font-semibold">{t("Issues logged during the lease ({n})", { n: issues.length })}</h3>

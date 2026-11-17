@@ -7,7 +7,7 @@ Built for **1,000,000 registered users and 25,000 active users**, hosted in Goog
 | Part | Google Cloud service | Size at launch | Grows to |
 |---|---|---|---|
 | Web app | Cloud Run `handover-web` | 2 instances always on (1 vCPU, 1 GB each) | 60 instances, automatically |
-| Background work: video previews, AI move-out reports, emails | Cloud Run `handover-worker` | 1 instance (2 vCPU, 4 GB) | 6 instances |
+| Background work: video previews, AI move-out reports, emails, inspection reminders (WhatsApp, push) | Cloud Run `handover-worker` | 1 instance (2 vCPU, 4 GB) | 6 instances |
 | Database | Cloud SQL for PostgreSQL 16, high availability (a standby copy in a second zone) | 4 vCPU, 16 GB, 100 GB SSD | Disk grows by itself. Move to 8 vCPU past ~100k active users |
 | Photos, videos, documents | Cloud Storage bucket in Doha | Pay per GB | Unlimited |
 | Front door | Global HTTPS load balancer, Google-managed certificate, Cloud CDN for app files, Cloud Armor | | |
@@ -61,6 +61,7 @@ The script takes about 20 minutes. Most of that is creating the database. You ca
    printf '%s' 're_...'     | gcloud secrets versions add resend-api-key --data-file=-
    printf '%s' 'GOCSPX-...' | gcloud secrets versions add google-client-secret --data-file=-
    ```
+   WhatsApp and push reminders are optional. See "Inspection reminders" below.
    In the Google sign-in client, add `https://<DOMAIN>/api/auth/google/callback` as a redirect URI.
 3. **Restart both services** so they read the new keys:
    ```bash
@@ -95,6 +96,29 @@ How it works:
 - If a renewal fails, the landlord gets 7 days' grace, daily retries and emails. After that the account drops to Free, and nothing is deleted.
 - Every payment produces a receipt (by email and on the Billing page) and an entry in the tamper-proof log.
 - Prices can be changed with `PRICE_PRO_MONTH`, `PRICE_PRO_YEAR`, `PRICE_BUSINESS_MONTH` and `PRICE_BUSINESS_YEAR`.
+
+## Inspection reminders
+
+The worker checks every 15 minutes, between 9:00 and 21:00 Qatar time. It reminds whoever has something to do before move-in (the lease start date) and move-out (the end date): 7, 3 and 1 days before, on the day, then every 2 days for up to 2 weeks while it's overdue. It stops once both sides have signed that inspection report. Each reminder goes out once, however many workers run.
+
+- **Email** always works, through Resend.
+- **WhatsApp** is opt-in. WhatsApp requires that. Each person turns it on under 🔔 in the app and gives their number. To send:
+  1. In Meta Business Manager, set up the WhatsApp Business Cloud API for your number. Note the **phone number ID** and make a **permanent access token** (a system user token).
+  2. Create a *Utility* message template named `inspection_reminder` in each language you need (en, ar, hi, ml, ur, fr, es). The body is `Hi {{1}}, reminder for {{2}}: {{3}}`. Add one *Visit website* button with a dynamic URL `https://<DOMAIN>/{{1}}`. Wait for Meta to approve it.
+  3. Add the token and the phone number ID:
+     ```bash
+     printf '%s' 'EAAG...' | gcloud secrets versions add whatsapp-token --data-file=-
+     gcloud run services update handover-worker --region me-central1 --update-env-vars WHATSAPP_PHONE_ID=1234567890
+     ```
+- **Phone and browser notifications** (web push). Each person turns them on per device under 🔔. On iPhone they work once Handover AI is added to the Home Screen. To send:
+  ```bash
+  npx web-push generate-vapid-keys        # prints a public and a private key
+  printf '%s' '<private key>' | gcloud secrets versions add vapid-private-key --data-file=-
+  gcloud run services update handover-web    --region me-central1 --update-env-vars VAPID_PUBLIC_KEY=<public key>
+  gcloud run services update handover-worker --region me-central1 --update-env-vars VAPID_PUBLIC_KEY=<public key>,VAPID_SUBJECT=mailto:you@yourdomain.qa
+  ```
+
+Until WhatsApp or push is set up, every message is still kept and shown under Messages, marked "not sent".
 
 ## Shipping updates
 

@@ -12,6 +12,7 @@ const LABELS: Record<string, string> = {
   "issue.comment": "commented on an issue", "issue.status": "changed an issue's status", "issue.confirm": "confirmed a fix",
   "comparison.started": "started the AI comparison", "comparison.completed": "AI comparison finished", "comparison.failed": "AI comparison failed",
   "comparison_item.agree": "agreed with an AI finding", "comparison_item.dispute": "disputed an AI finding", "rental.closed": "closed the rental", "issue.assigned": "assigned an issue to staff",
+  "rooms.edited": "changed the room checklist", "inspection.rated": "rated items in the inspection", "report.signed": "signed the inspection report",
 };
 
 function detail(action: string, d: Record<string, unknown>, t: (s: string, v?: Record<string, string | number>) => string) {
@@ -23,6 +24,9 @@ function detail(action: string, d: Record<string, unknown>, t: (s: string, v?: R
   if (action === "movein.approved") return t("{n} files · seal {seal}…", { n: String(d.files), seal: String(d.seal).slice(0, 16) });
   if (action === "movein.changes_requested") return String(d.note ?? "");
   if (action === "lease.signed") return t("as \"{name}\"", { name: String(d.name) });
+  if (action === "report.signed") return `${t(d.stage === "move_in" ? "Move-in" : "Move-out")} · ${t("as \"{name}\"", { name: String(d.name) })}`;
+  if (action === "inspection.rated") return `${t(d.stage === "move_in" ? "Move-in" : "Move-out")} · ${(d.rooms as string[] | undefined ?? []).map((x) => t(x)).join(", ")}`;
+  if (action === "rooms.edited") return [d.room, d.item, d.from].filter(Boolean).map((x) => t(String(x))).join(" · ");
   if (action === "comparison.completed") return t("{n} findings", { n: String(d.findings) });
   if (action.startsWith("comparison_item")) return `${d.title}${d.note ? `: ${d.note}` : ""}`;
   return "";
