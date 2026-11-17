@@ -2,6 +2,7 @@ import { bad, handler, str } from "@/lib/api";
 import { audit } from "@/lib/audit";
 import { fullySigned, moveInLocked, rentalForUser } from "@/lib/rentals";
 import { formUploads, saveUpload } from "@/lib/storage";
+import { reportRow, reportStarted } from "@/lib/inspections";
 import { detectMime, isPhotoOrVideo } from "@/lib/formats";
 import type { Media } from "@/lib/types";
 
@@ -19,6 +20,7 @@ export const POST = handler(async (req, user, p) => {
   } else if (context === "move_out") {
     if (!fullySigned(rental)) bad("Move-out pictures can be added once the lease is signed");
     if (rental.ended_at) bad("This rental is closed");
+    if (reportStarted(await reportRow(rental.id, "move_out"))) bad("The move-out report has been signed, so its photos can't change");
     if (!room) bad("Pick a room");
   } else if (context === "document") {
     if (!title && files.length === 1) bad("Give the document a title");

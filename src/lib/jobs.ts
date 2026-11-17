@@ -7,7 +7,7 @@ import { db } from "./db";
  * - Otherwise (dev, tests): the web process runs each job right after queueing it.
  * Failed jobs are retried with growing delays, then marked failed.
  */
-export type JobKind = "preview" | "email" | "compare" | "renew";
+export type JobKind = "preview" | "email" | "compare" | "renew" | "whatsapp" | "push";
 type Job = { id: number; kind: JobKind; payload: Record<string, unknown>; attempts: number };
 
 const MAX_ATTEMPTS = Number(process.env.JOB_MAX_ATTEMPTS || 5);
@@ -22,6 +22,14 @@ const handlers: Record<JobKind, (p: Record<string, unknown>) => Promise<void>> =
   async email(p) {
     const { deliverEmail } = await import("./notify");
     await deliverEmail(Number(p.outboxId));
+  },
+  async whatsapp(p) {
+    const { deliverWhatsApp } = await import("./reminders");
+    await deliverWhatsApp(Number(p.notificationId));
+  },
+  async push(p) {
+    const { deliverPush } = await import("./reminders");
+    await deliverPush(Number(p.notificationId));
   },
   async renew(p) {
     const { renew } = await import("./subscriptions");
@@ -77,4 +85,5 @@ export async function cleanup() {
   await d.run("DELETE FROM rate_limits WHERE window_start < now() - interval '1 day'");
   await d.run("DELETE FROM jobs WHERE status = 'done' AND done_at < now() - interval '7 days'");
   await d.run("DELETE FROM email_codes WHERE expires_at < ?", new Date(Date.now() - 86400_000).toISOString());
+  await d.run("DELETE FROM reminders_sent WHERE sent_at < now() - interval '60 days'");
 }

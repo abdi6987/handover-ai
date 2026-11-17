@@ -268,7 +268,7 @@ export function NewRentalForm({ defaultRole = "owner" }: { defaultRole?: "owner"
   );
 }
 
-export function UploadBox({ rentalId, context, rooms, defaultRoom }: { rentalId: number; context: "move_in" | "move_out"; rooms: string[]; defaultRoom?: string }) {
+export function UploadBox({ rentalId, context, rooms, defaultRoom }: { rentalId: number; context: "move_in" | "move_out"; rooms: { value: string; label: string }[]; defaultRoom?: string }) {
   const t = useT();
   const [count, setCount] = useState(0);
   const pick = useRef<HTMLInputElement>(null);
@@ -283,8 +283,11 @@ export function UploadBox({ rentalId, context, rooms, defaultRoom }: { rentalId:
       onDone={() => setCount(0)}>
       <div>
         <label className="label">{t("Room")}</label>
-        <input name="room" list={`rooms-${context}`} required className="input" defaultValue={defaultRoom} placeholder={t("Pick or type a room")} />
-        <datalist id={`rooms-${context}`}>{rooms.map((r) => <option key={r} value={r} />)}</datalist>
+        {/* Rooms are sent by their stored name, so photos line up with the checklist whatever language each side uses. */}
+        <select name="room" required className="input" defaultValue={defaultRoom ?? ""}>
+          <option value="" disabled>{t("Pick a room")}</option>
+          {rooms.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
+        </select>
       </div>
       <div className="grid grid-cols-2 gap-2">
         <label className="btn-secondary cursor-pointer">
@@ -298,6 +301,88 @@ export function UploadBox({ rentalId, context, rooms, defaultRoom }: { rentalId:
       </div>
       {count > 0 && <p className="text-sm text-gray-600">{count} file{count > 1 ? "s" : ""} selected</p>}
     </Form>
+  );
+}
+
+const TONE: Record<string, string> = { good: "peer-checked:bg-green-600", fair: "peer-checked:bg-amber-500", damaged: "peer-checked:bg-red-600", na: "peer-checked:bg-gray-500" };
+
+/** Rate every item in one room: good / fair / damaged / not applicable, with an optional note each. */
+export function RatingForm({ rentalId, stage, items, conditions }: {
+  rentalId: number; stage: "move_in" | "move_out";
+  items: { id: number; label: string; condition: string | null; note: string | null; before?: string | null }[];
+  conditions: { value: string; label: string }[];
+}) {
+  const t = useT();
+  const [saved, setSaved] = useState(false);
+  return (
+    <Form url={`/api/rentals/${rentalId}/inspection`} submitLabel={t("Save ratings")} extra={{ stage }} resetOnSuccess={false} buttonClass="btn-secondary"
+      onDone={() => { setSaved(true); setTimeout(() => setSaved(false), 2500); }}>
+      <ul className="divide-y divide-gray-100">
+        {items.map((it) => (
+          <li key={it.id} className="space-y-1.5 py-2" data-item={it.label}>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="text-sm font-medium">{it.label}{it.before ? <span className="ms-2 text-xs font-normal text-gray-500">{t("At move-in: {c}", { c: it.before })}</span> : null}</span>
+              <div className="flex overflow-hidden rounded-lg border border-gray-300 text-xs" role="radiogroup" aria-label={it.label}>
+                {conditions.map((c) => (
+                  <label key={c.value} className="cursor-pointer border-e border-gray-300 last:border-e-0">
+                    <input type="radio" name={`c_${it.id}`} value={c.value} defaultChecked={it.condition === c.value} className="peer sr-only" />
+                    <span className={`block px-2.5 py-1.5 peer-checked:text-white peer-focus-visible:ring-2 ${TONE[c.value]}`}>{c.label}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+            <input name={`n_${it.id}`} defaultValue={it.note ?? ""} maxLength={500} placeholder={t("Note (optional), e.g. 'scratch near the window'")} className="input !py-1.5 text-sm" />
+          </li>
+        ))}
+      </ul>
+      {saved && <p className="text-sm text-green-700">{t("Saved ✓")}</p>}
+    </Form>
+  );
+}
+
+function b64ToBytes(b64: string) {
+  const s = atob(b64.replace(/-/g, "+").replace(/_/g, "/") + "=".repeat((4 - (b64.length % 4)) % 4));
+  return Uint8Array.from(s, (c) => c.charCodeAt(0));
+}
+
+/** Turn browser notifications on or off for this device. On iPhone they work once the app is added to the Home Screen. */
+export function PushToggle({ publicKey }: { publicKey: string }) {
+  const t = useT();
+  const [state, setState] = useState<"loading" | "unsupported" | "off" | "on" | "denied">("loading");
+  const [error, setError] = useState("");
+  useEffect(() => {
+    if (!("serviceWorker" in navigator) || !("PushManager" in window)) return setState("unsupported");
+    if (Notification.permission === "denied") return setState("denied");
+    void navigator.serviceWorker.register("/sw.js").then(async (reg) => setState((await reg.pushManager.getSubscription()) ? "on" : "off")).catch(() => setState("unsupported"));
+  }, []);
+  async function turnOn() {
+    setError("");
+    try {
+      const reg = await navigator.serviceWorker.register("/sw.js");
+      if ((await Notification.requestPermission()) !== "granted") return setState("denied");
+      const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64ToBytes(publicKey) });
+      const r = await send("/api/push", "POST", sub.toJSON());
+      if (r.error) return setError(r.error);
+      setState("on");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  }
+  async function turnOff() {
+    const reg = await navigator.serviceWorker.getRegistration();
+    const sub = await reg?.pushManager.getSubscription();
+    if (sub) { await send("/api/push", "DELETE", { endpoint: sub.endpoint }); await sub.unsubscribe(); }
+    setState("off");
+  }
+  if (state === "loading") return null;
+  return (
+    <div className="space-y-1">
+      {state === "unsupported" && <p className="text-sm text-gray-600">{t("This browser can't show notifications. On iPhone, add Handover AI to your Home Screen first (Share, then Add to Home Screen), and open it from there.")}</p>}
+      {state === "denied" && <p className="text-sm text-gray-600">{t("Notifications are blocked for this site. Allow them in your browser settings, then reload.")}</p>}
+      {state === "off" && <button type="button" className="btn-secondary" onClick={() => void turnOn()}>{t("Turn on notifications on this device")}</button>}
+      {state === "on" && <div className="flex flex-wrap items-center gap-2"><span className="text-sm text-green-700">{t("Notifications are on for this device ✓")}</span><button type="button" className="text-sm font-semibold text-gray-600 underline" onClick={() => void turnOff()}>{t("Turn off")}</button></div>}
+      {error && <p className="text-sm text-red-700">{error}</p>}
+    </div>
   );
 }
 

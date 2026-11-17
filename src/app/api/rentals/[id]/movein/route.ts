@@ -3,6 +3,7 @@ import { audit } from "@/lib/audit";
 import { db, now } from "@/lib/db";
 import { buildManifest, mediaFor, rentalForUser, sealOf } from "@/lib/rentals";
 import { notifyUser } from "@/lib/notify";
+import { checklistSnapshot } from "@/lib/inspections";
 
 export const POST = handler(async (req, user, p) => {
   const { rental, role } = await rentalForUser(Number(p.id), user);
@@ -35,7 +36,8 @@ export const POST = handler(async (req, user, p) => {
   }
   if (action === "approve") {
     const at = now();
-    const manifest = buildManifest(rental, media);
+    // The seal covers the room checklist and its move-in ratings too, not only the photos.
+    const manifest = { ...buildManifest(rental, media), checklist: await checklistSnapshot(rental) };
     const seal = sealOf(manifest, at, user.id);
     await db().prepare("UPDATE rentals SET movein_status='approved', movein_seal=?, movein_manifest=?, movein_approved_at=?, movein_approved_by=?, movein_note=? WHERE id=?")
       .run(seal, JSON.stringify(manifest), at, user.id, note, rental.id);

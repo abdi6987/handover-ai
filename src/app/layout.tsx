@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import Link from "next/link";
 import { currentUser } from "@/lib/auth";
 import { paymentsEnabled } from "@/lib/billing";
+import { db } from "@/lib/db";
 import { I18nProvider, LanguageMenu, LogoutButton } from "@/components/client";
 import { DICTS, getLang, getT, langInfo } from "@/lib/i18n";
 import "./globals.css";
@@ -10,6 +11,8 @@ export const metadata: Metadata = {
   title: "Handover AI",
   description: "Move-in and move-out proof, leases, repairs and reports for tenants and owners.",
   appleWebApp: { capable: true, title: "Handover AI" },
+  manifest: "/manifest.webmanifest",
+  icons: { apple: "/apple-touch-icon.png" },
 };
 export const viewport: Viewport = { width: "device-width", initialScale: 1, themeColor: "#0f766e" };
 
@@ -17,6 +20,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const t = await getT();
   const lang = await getLang();
   const user = await currentUser();
+  // Remember the language so reminders sent later (by email, WhatsApp or push) are in it too.
+  if (user && user.lang !== lang) await db().run("UPDATE users SET lang = ? WHERE id = ?", lang, user.id);
   return (
     <html lang={lang} dir={langInfo(lang).dir}>
       <body className="min-h-screen antialiased">
@@ -25,7 +30,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           <div className="mx-auto flex h-14 max-w-5xl items-center justify-between gap-3 px-4">
             <Link href={user ? "/dashboard" : "/"} className="flex items-center gap-2 font-bold">
               <span className="grid h-8 w-8 place-items-center rounded-lg bg-brand-700 text-sm text-white">H</span>
-              <span>Handover AI</span>
+              <span className={user ? "hidden sm:inline" : ""}>Handover AI</span>
             </Link>
             {user ? (
               <nav className="flex items-center gap-1 text-sm">
@@ -33,7 +38,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                 {user.account_type === "owner" && <Link href="/dashboard/landlord/maintenance" className="hidden rounded-lg px-2.5 py-1.5 hover:bg-gray-100 sm:inline">{t("Maintenance")}</Link>}
                 {user.account_type === "owner" && <Link href="/dashboard/landlord/staff" className="hidden rounded-lg px-2.5 py-1.5 hover:bg-gray-100 sm:inline">{t("Staff")}</Link>}
                 {user.account_type === "owner" && paymentsEnabled() && <Link href="/billing" className="hidden rounded-lg px-2.5 py-1.5 hover:bg-gray-100 sm:inline">{t("Billing")}</Link>}
-                <Link href="/inbox" className="rounded-lg px-2.5 py-1.5 hover:bg-gray-100">{t("Emails")}</Link>
+                <Link href="/inbox" aria-label={t("Messages")} className="rounded-lg px-2 py-1.5 hover:bg-gray-100 sm:px-2.5"><span className="sm:hidden">✉️</span><span className="hidden sm:inline">{t("Messages")}</span></Link>
+                <Link href="/settings" aria-label={t("Reminder settings")} title={t("Reminder settings")} className="rounded-lg px-2 py-1.5 hover:bg-gray-100">🔔</Link>
                 <LanguageMenu />
                 <LogoutButton />
               </nav>

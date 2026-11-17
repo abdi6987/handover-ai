@@ -47,7 +47,7 @@ export const currentUser = cache(async (): Promise<User | null> => {
   if (!token) return null;
   const row = await db()
     .prepare(
-      `SELECT u.id, u.email, u.name, u.phone, u.account_type, u.created_at, u.email_verified_at FROM sessions s JOIN users u ON u.id = s.user_id
+      `SELECT u.id, u.email, u.name, u.phone, u.account_type, u.created_at, u.email_verified_at, u.lang, u.whatsapp_reminders FROM sessions s JOIN users u ON u.id = s.user_id
        WHERE s.token = ? AND s.expires_at > ?`
     )
     .get(token, now()) as User | undefined;
@@ -82,5 +82,5 @@ export async function userNames(ids: (number | null | undefined)[]): Promise<Map
 
 export async function getUser(id: number | null | undefined): Promise<User | null> {
   if (!id) return null;
-  return (await db().prepare("SELECT id, email, name, phone, account_type, created_at, email_verified_at FROM users WHERE id = ?").get(id) as User) ?? null;
+  return (await db().prepare("SELECT id, email, name, phone, account_type, created_at, email_verified_at, lang, whatsapp_reminders FROM users WHERE id = ?").get(id) as User) ?? null;
 }

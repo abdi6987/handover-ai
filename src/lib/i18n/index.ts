@@ -1,15 +1,9 @@
 import { cookies, headers } from "next/headers";
 import { cache } from "react";
-import { isLang, LANGS, makeT, type Dict, type Lang } from "./langs";
-import ar from "./dict/ar";
-import hi from "./dict/hi";
-import ml from "./dict/ml";
-import ur from "./dict/ur";
-import fr from "./dict/fr";
-import es from "./dict/es";
+import { isLang, LANGS, makeT, type Lang } from "./langs";
+import { DICTS } from "./dicts";
 
-export const DICTS: Record<Lang, Dict | null> = { en: null, ar, hi, ml, ur, fr, es };
-(DICTS as Record<string, Dict | null>).xx = { __pseudo: "1" };
+export { DICTS };
 
 /** Language from the "lang" cookie, else the browser's Accept-Language, else English. */
 export const getLang = cache(async (): Promise<Lang> => {

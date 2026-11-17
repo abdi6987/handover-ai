@@ -4,8 +4,10 @@ import { loadRental } from "@/lib/page";
 import { db } from "@/lib/db";
 import { fullySigned, mediaFor } from "@/lib/rentals";
 import { ActionButton, AutoRefresh, ItemResponse, UploadBox } from "@/components/client";
-import { Badge, fmt, groupByRoom, MediaGrid, MediaTile } from "@/components/ui";
-import { ROOMS, type Media } from "@/lib/types";
+import { Badge, fmt, MediaTile } from "@/components/ui";
+import { InspectionRooms, ReportCard, roomOptions } from "@/components/inspection";
+import { ratingsOpen, reportRow, roomsOf } from "@/lib/inspections";
+import type { Media } from "@/lib/types";
 
 type Comparison = { id: number; created_at: string; status: string; summary: string | null; error: string | null; model: string | null; demo: number; created_by: number };
 type Item = { id: number; room: string; title: string; description: string; severity: string; classification: string; confidence: number; before_media: string; after_media: string; related_issue_id: number | null; status: string; owner_response: string | null; tenant_response: string | null; owner_note: string | null; tenant_note: string | null };
@@ -32,24 +34,21 @@ export default async function MoveOut({ params }: { params: Promise<{ id: string
   const comps = await db().prepare("SELECT * FROM comparisons WHERE rental_id = ? ORDER BY id DESC").all(r.id) as Comparison[];
   const latest = comps[0];
   const items = latest ? await db().prepare("SELECT * FROM comparison_items WHERE comparison_id = ? ORDER BY CASE classification WHEN 'new_damage' THEN 0 ELSE 1 END, room").all(latest.id) as Item[] : [];
-  const rooms = [...new Set([...before.map((m) => m.room || "Other"), ...ROOMS.map((x) => t(x))])];
+  const rooms = await roomsOf(r.id);
+  const open = ratingsOpen(r, "move_out", await reportRow(r.id, "move_out"));
   const refs = (json: string) => (JSON.parse(json || "[]") as { media_id: number; t: number | null }[]).filter((x) => all.has(x.media_id));
   return (
     <div className="space-y-4">
       {latest?.status === "running" && <AutoRefresh />}
-      {!r.ended_at && (
+      <ReportCard r={r} stage="move_out" />
+      {open && (
         <div className="card space-y-3">
           <h2 className="h2">{t("Move-out photos and videos")}</h2>
           <p className="muted">{t("Use the same room names as move-in so the AI can compare like with like. Try to take the same angles.")}</p>
-          <UploadBox rentalId={r.id} context="move_out" rooms={rooms} />
+          <UploadBox rentalId={r.id} context="move_out" rooms={await roomOptions(rooms)} />
         </div>
       )}
-      {[...groupByRoom(after).entries()].map(([room, items]) => (
-        <div key={room} className="card space-y-3">
-          <h3 className="font-semibold">{t(room)} <span className="muted">({items.length})</span></h3>
-          <MediaGrid media={items} names={names} canDelete={(m) => m.uploaded_by === user.id && !r.ended_at} />
-        </div>
-      ))}
+      <InspectionRooms r={r} stage="move_out" rooms={rooms} media={after} names={names} open={open} canDelete={(m) => open && m.uploaded_by === user.id} />
 
       <div className="card space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">

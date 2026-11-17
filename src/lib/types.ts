@@ -1,4 +1,4 @@
-export type User = { id: number; email: string; name: string; phone: string | null; account_type: "tenant" | "owner" | "staff"; created_at: string; email_verified_at?: string | null };
+export type User = { id: number; email: string; name: string; phone: string | null; account_type: "tenant" | "owner" | "staff"; created_at: string; email_verified_at?: string | null; lang?: string | null; whatsapp_reminders?: boolean };
 
 export type Rental = {
   id: number; name: string; address: string;
