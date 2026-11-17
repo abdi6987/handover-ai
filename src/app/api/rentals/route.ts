@@ -1,3 +1,4 @@
+import { assertCanAddProperty } from "@/lib/billing";
 import { bad, handler, num, str } from "@/lib/api";
 import { audit } from "@/lib/audit";
 import { db, now } from "@/lib/db";
@@ -10,6 +11,7 @@ export const POST = handler(async (req, user) => {
   const role: Role = b.myRole === "tenant" ? "tenant" : "owner";
   const name = str(b.name, 120), address = str(b.address, 300);
   if (!name || !address) bad("Give the rental a name and address");
+  if (role === "owner") await assertCanAddProperty(user);
   const otherEmail = str(b.otherEmail, 200).toLowerCase();
   if (otherEmail && otherEmail === user.email) bad("Invite the other side, not yourself");
   const info = await db().prepare(

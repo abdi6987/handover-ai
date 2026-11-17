@@ -117,8 +117,10 @@ export function Form({
   );
 }
 
-export function ActionButton({ url, method = "POST", body, label, className = "btn-secondary", confirmText }: {
+export function ActionButton({ url, method = "POST", body, label, className = "btn-secondary", confirmText, hardRedirect = false }: {
   url: string; method?: string; body?: object; label: string; className?: string; confirmText?: string;
+  /** Leave the app for the redirect (e.g. a payment page) instead of client-side navigation. */
+  hardRedirect?: boolean;
 }) {
   const t = useT();
   const router = useRouter();
@@ -132,6 +134,7 @@ export function ActionButton({ url, method = "POST", body, label, className = "b
         const r = await send(url, method, body ?? {});
         setBusy(false);
         if (r.error) return setError(r.error);
+        if (r.redirect && hardRedirect) return window.location.assign(r.redirect);
         if (r.redirect) router.push(r.redirect);
         router.refresh();
       }}>{busy ? t("Working...") : t(label)}</button>
